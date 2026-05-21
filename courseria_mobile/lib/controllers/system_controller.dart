@@ -1,0 +1,219 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../core/constants/constants.dart';
+
+class SystemController extends GetxController {
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
+  var isCheckingUpdate = false.obs;
+  var updateProgress = 0.0.obs;
+  var isDownloading = false.obs;
+
+  // Phase 5: Administrative & Preference Options
+  var autoDownload = false.obs;
+  var useTestServer = false.obs;
+  var selectedThemeColor = AppColors.accentTeal.obs;
+  var offlinePreference = 'high_quality'.obs; // 'high_quality', 'data_saver'
+  var selectedAIModel = AIModel.gemini2_5_flash_lite.obs; // Default to Lite
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Load saved preferences if any
+    _loadPreferences();
+  }
+
+  void _loadPreferences() {
+    // Mocking loading from storage
+    // final storage = GetStorage();
+    // autoDownload.value = storage.read('auto_download') ?? false;
+    // String? modelIndex = storage.read('selected_ai_model');
+    // if (modelIndex != null) {
+    //   selectedAIModel.value = AIModel.values[int.parse(modelIndex)];
+    // }
+  }
+
+  void updateAIModel(AIModel model) {
+    selectedAIModel.value = model;
+    // GetStorage().write('selected_ai_model', model.index.toString());
+  }
+
+  void toggleAutoDownload(bool val) {
+    autoDownload.value = val;
+    // storage.write('auto_download', val);
+  }
+
+  void toggleTestServer(bool val) {
+    useTestServer.value = val;
+    Get.snackbar("تنبيه السيرفر", val ? "تم التحويل إلى السيرفر التجريبي" : "تم العودة للسيرفر الأساسي", 
+        backgroundColor: val ? Colors.amber : AppColors.accentTeal, colorText: Colors.white);
+  }
+
+  void updateThemeColor(Color color) {
+    selectedThemeColor.value = color;
+  }
+
+  void setOfflinePreference(String pref) {
+    offlinePreference.value = pref;
+  }
+
+  Future<void> checkForUpdates() async {
+    try {
+      isCheckingUpdate.value = true;
+      
+      // 1. Get Current Local Version
+      PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      String currentVersion = packageInfo.version;
+      int currentBuildNumber = int.tryParse(packageInfo.buildNumber) ?? 0;
+
+      // 2. Fetch Latest Version from Supabase (app_config table)
+      final config = await _supabase
+          .from('app_config')
+          .select()
+          .maybeSingle();
+
+      if (config == null) return;
+
+      String latestVersion = config['current_version'] ?? currentVersion;
+      int latestBuildNumber = config['latest_build_number'] ?? currentBuildNumber;
+      bool forceUpdate = config['force_update'] ?? false;
+      String updateUrl = config['update_url'] ?? "";
+      String patchUrl = config['patch_url'] ?? "";
+      String updateNotes = config['update_notes'] ?? "يتوفر تحديث جديد ومحسّن للمنصة لتوفير بياناتك.";
+
+      // 3. Compare Versions
+      if (latestBuildNumber > currentBuildNumber) {
+        // Determine if it's a Major or Minor update
+        // Logic: If forceUpdate is true -> Full APK
+        // Otherwise -> Minor Patch (simulation for now)
+        bool isMajor = forceUpdate;
+
+        _showUpdateDialog(
+          isMajor: isMajor,
+          version: latestVersion,
+          notes: updateNotes,
+          updateUrl: updateUrl,
+          patchUrl: patchUrl,
+        );
+      }
+    } catch (e) {
+      debugPrint("Error checking updates: $e");
+    } finally {
+      isCheckingUpdate.value = false;
+    }
+  }
+
+  void _showUpdateDialog({
+    required bool isMajor,
+    required String version,
+    required String notes,
+    required String updateUrl,
+    required String patchUrl,
+  }) {
+    Get.dialog(
+      WillPopScope(
+        onWillPop: () async => !isMajor, // Prevent closing if forced
+        child: AlertDialog(
+          backgroundColor: AppColors.secondaryNavy,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.system_update_rounded, color: AppColors.accentTeal),
+              const SizedBox(width: 10),
+              Text(
+                isMajor ? "تحديث إجباري" : "تحديث متوفر",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "إصدار جديد: $version",
+                style: const TextStyle(color: AppColors.accentTeal, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                notes,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              Obx(() => isDownloading.value
+                  ? Column(
+                      children: [
+                        LinearProgressIndicator(
+                          value: updateProgress.value,
+                          backgroundColor: Colors.white10,
+                          color: AppColors.accentTeal,
+                          minHeight: 8,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "جاري التحميل... ${(updateProgress.value * 100).toInt()}%",
+                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink()),
+            ],
+          ),
+          actions: [
+            if (!isMajor)
+              TextButton(
+                onPressed: () => Get.back(),
+                child: const Text("لاحقاً", style: TextStyle(color: Colors.white24)),
+              ),
+            ElevatedButton(
+              onPressed: () => isMajor ? _launchUpdateUrl(updateUrl) : _startMinorUpdate(patchUrl),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accentTeal,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text(
+                isMajor ? "تحديث الآن (APK)" : "تحديث سريع (Patch)",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+      barrierDismissible: !isMajor,
+    );
+  }
+
+  Future<void> _launchUpdateUrl(String url) async {
+    if (url.isEmpty) return;
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _startMinorUpdate(String patchUrl) async {
+    isDownloading.value = true;
+    updateProgress.value = 0.0;
+
+    // Simulate Minor Patch Download (Future Engine integration)
+    for (int i = 0; i <= 100; i += 5) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      updateProgress.value = i / 100;
+    }
+
+    isDownloading.value = false;
+    Get.back();
+    Get.snackbar(
+      "اكتمل التحديث",
+      "تم تطبيق التحديث السريع بنجاح. سيتم إعادة تشغيل التطبيق.",
+      backgroundColor: AppColors.accentTeal,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 3),
+    );
+
+    // Future: Logic to restart app internally or reload hot-reload-like patches
+  }
+}

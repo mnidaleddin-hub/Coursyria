@@ -1,0 +1,32 @@
+# Gradle files
+**/gradle-8.3-all/
+**/gradle-8.3-all.zip
+**/*.zip
+
+# Build directories
+**/build/
+**/.gradle/
+
+# IDE files
+.idea/
+**/.vscode/
+
+# Mobile specific
+courseria_mobile/.dart_tool/
+courseria_mobile/.flutter-plugins
+courseria_mobile/.flutter-plugins-dependencies
+courseria_mobile/.packages
+courseria_mobile/pubspec.lock
+
+# Python
+**/venv/
+**/venv_new/
+**/__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# Windows
+desktop.ini
+Thumbs.db

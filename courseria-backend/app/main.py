@@ -1,0 +1,76 @@
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from app.routers import auth, courses, wallet, admin, notifications, system
+from app.config import get_settings
+
+settings = get_settings()
+
+app = FastAPI(
+    title="Courseria API",
+    description="E-learning platform backend optimized for Syrian students",
+    version="1.0.0",
+    docs_url="/docs" if not settings.is_production else None,
+    redoc_url="/redoc" if not settings.is_production else None,
+)
+
+# Global Exception Handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    if not settings.is_production:
+        print(f"!!! UNHANDLED ERROR: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "حدث خطأ داخلي في الخادم، يرجى المحاولة لاحقاً"},
+    )
+
+# Global Routing Configuration
+app.router.redirect_slashes = True
+
+# CORS Middleware setup
+origins = settings.ALLOWED_ORIGINS.split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins if settings.is_production else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    if not settings.is_production:
+        print(f"--> Incoming Request: {request.method} {request.url.path}")
+    try:
+        response = await call_next(request)
+        if not settings.is_production:
+            print(f"<-- Response Status: {response.status_code}")
+        return response
+    except Exception as e:
+        if not settings.is_production:
+            print(f"!!! CRITICAL BACKEND ERROR: {str(e)}")
+        raise e
+
+# Root health-check endpoint
+@app.get("/")
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "environment": settings.ENV,
+        "timestamp": "2026-05-13" # In production, use dynamic datetime
+    }
+
+# Mounting routers
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(courses.router, prefix="/courses", tags=["Courses"])
+app.include_router(wallet.router, prefix="/wallet", tags=["Wallet"])
+app.include_router(admin.router, prefix="/admin", tags=["Backoffice Administration"])
+app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+app.include_router(system.router, prefix="/system", tags=["System & Updates"])
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
