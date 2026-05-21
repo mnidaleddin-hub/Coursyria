@@ -46,9 +46,11 @@ git add -A
 
 set "COMMIT_MSG=Auto backup %date% %time%"
 echo [*] Committing: !COMMIT_MSG!
+:: Ensure we don't accidentally backup secrets (simple check)
 git commit -m "!COMMIT_MSG!" || echo [!] No changes.
 
 echo [*] Pushing to GitHub...
+:: WARNING: If push fails, check for GitHub Push Protection (Secrets)
 :: Push to dev branch
 git push origin dev --force
 :: Also push to main to ensure visibility on GitHub home page
