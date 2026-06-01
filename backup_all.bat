@@ -26,10 +26,20 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+set /p USE_PROXY="هل يتوفر بروكسي؟ (yes/non): "
+
 echo [*] Setting Git Configs...
 git config core.autocrlf true
-git config --local http.proxy "%PROXY_SERVER%"
-git config --local https.proxy "%PROXY_SERVER%"
+
+if /i "%USE_PROXY%"=="non" (
+    echo [*] Running without proxy...
+    git config --local --unset http.proxy 2>nul
+    git config --local --unset https.proxy 2>nul
+) else (
+    echo [*] Running with proxy: %PROXY_SERVER%
+    git config --local http.proxy "%PROXY_SERVER%"
+    git config --local https.proxy "%PROXY_SERVER%"
+)
 
 if not exist ".git" (
     echo [*] Initializing Git...
