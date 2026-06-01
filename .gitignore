@@ -26,6 +26,7 @@ courseria_mobile/pubspec.lock
 
 # Environment
 .env
+backup.log
 
 # Windows
 desktop.ini

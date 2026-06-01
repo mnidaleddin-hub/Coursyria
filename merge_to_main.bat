@@ -2,10 +2,9 @@
 setlocal enabledelayedexpansion
 set "REPO_ROOT=D:\Coursyria\Coursyria"
 set "PROXY_SERVER=http://10.12.207.175:7071"
-set "LOG_FILE=%REPO_ROOT%\backup.log"
 cls
 echo ====================================================
-echo     COURSYRIA BACKUP: DEV
+echo     COURSYRIA MERGE: DEV TO MAIN
 echo ====================================================
 echo [*] Navigating to repo...
 pushd "%REPO_ROOT%"
@@ -14,6 +13,7 @@ if %ERRORLEVEL% neq 0 (
     pause
     exit /b 1
 )
+echo [*] Cleaning git locks...
 taskkill /F /IM git.exe /T >nul 2>&1
 if exist ".git\index.lock" del /f /q ".git\index.lock"
 set /p USE_PROXY="Do you have a proxy? (yes/non): "
@@ -32,19 +32,34 @@ if /i "%USE_PROXY%"=="non" (
     git config --local http.proxy "%PROXY_SERVER%"
     git config --local https.proxy "%PROXY_SERVER%"
 )
-git add -A
-set "COMMIT_MSG=Auto backup %date% %time%"
-git commit -m "%COMMIT_MSG%" >nul 2>&1
+echo [*] Saving local work (Stash)...
+git stash save "merge_auto_stash"
+echo [*] Updating dev branch...
+git checkout dev
+git fetch origin
+git pull origin dev
+echo [*] Preparing main branch...
+git checkout main || git checkout -b main
+git pull origin main 2>nul
+echo [*] Merging dev into main...
+git merge dev --no-edit
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Merge conflict detected.
+    pause
+    popd
+    exit /b 1
+)
 echo [*] Pushing to GitHub...
-git push origin dev --force-with-lease
+git push origin main
 if %ERRORLEVEL% equ 0 (
-    echo [SUCCESS] Backup pushed.
-    echo [%date% %time%] SUCCESS >> "%LOG_FILE%"
+    echo [SUCCESS] Merge completed.
 ) else (
     echo [FAILURE] Push failed.
-    echo [%date% %time%] FAILED >> "%LOG_FILE%"
     pause
 )
+echo [*] Returning to dev...
+git checkout dev
+git stash pop 2>nul
 echo [*] Operation Finished.
 pause
 popd
