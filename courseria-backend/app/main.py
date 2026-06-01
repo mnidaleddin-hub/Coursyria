@@ -39,6 +39,18 @@ app.add_middleware(
 )
 
 @app.middleware("http")
+async def extract_token_to_state(request: Request, call_next):
+    """استخراج التوكن وتخزينه في حالة الطلب للوصول السريع"""
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        request.state.token = auth_header.split(" ")[1]
+    else:
+        request.state.token = None
+    
+    response = await call_next(request)
+    return response
+
+@app.middleware("http")
 async def log_requests(request, call_next):
     if not settings.is_production:
         print(f"--> Incoming Request: {request.method} {request.url.path}")

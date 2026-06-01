@@ -3,13 +3,30 @@ from typing import Optional
 from datetime import datetime
 
 class OTPRequest(BaseModel):
-    contact: str = Field(..., description="Syrian phone number")
-    channel: str = Field("whatsapp", description="whatsapp or telegram")
+    contact: str = Field(..., description="International phone number (E.164 format)")
+    channel: Optional[str] = Field("whatsapp", description="whatsapp or telegram")
+    type: str = Field("login", description="login or register")
+
+class LoginRequest(BaseModel):
+    identifier: str # Email or Phone
+    password: Optional[str] = None
+    device_id: Optional[str] = None
+
+class RegisterRequest(BaseModel):
+    full_name: str
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    password: str
+    device_id: Optional[str] = None
+    channel: Optional[str] = "email"
 
 class OTPVerify(BaseModel):
     contact: str
     otp: str
     device_id: Optional[str] = None
+    full_name: Optional[str] = None
+    password: Optional[str] = None
+    channel: Optional[str] = "whatsapp"
 
 class UserBase(BaseModel):
     id: str

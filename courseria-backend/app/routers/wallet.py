@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from app.models.wallet_schemas import WalletRechargeRequest, WalletRechargeResponse, WalletBalanceResponse, DepositReceiptRequest
-from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_supabase_client
 import uuid
 import datetime
 
@@ -9,13 +8,13 @@ router = APIRouter()
 
 @router.post("/deposit-receipt")
 @router.post("/deposit-receipt/", include_in_schema=False)
-async def deposit_receipt(payload: DepositReceiptRequest, user=Depends(get_current_user), db=Depends(get_db)):
+async def deposit_receipt(payload: DepositReceiptRequest, user=Depends(get_current_user), db=Depends(get_supabase_client)):
     """Submit a payment receipt for manual admin approval"""
     try:
         tx_id = str(uuid.uuid4())
         data = {
             "id": tx_id,
-            "user_id": user["sub"],
+            "user_id": user["user_id"],
             "transaction_id": payload.transaction_id,
             "amount": payload.amount,
             "payment_method": payload.payment_method,
@@ -32,11 +31,11 @@ async def deposit_receipt(payload: DepositReceiptRequest, user=Depends(get_curre
 
 @router.post("/charity-request")
 @router.post("/charity-request/", include_in_schema=False)
-async def submit_charity_request(justification: str, user=Depends(get_current_user), db=Depends(get_db)):
+async def submit_charity_request(justification: str, user=Depends(get_current_user), db=Depends(get_supabase_client)):
     """Submit a request for a free course for financial reasons"""
     try:
         data = {
-            "user_id": user["sub"],
+            "user_id": user["user_id"],
             "justification": justification,
             "status": "pending",
             "created_at": datetime.datetime.utcnow().isoformat()
@@ -49,11 +48,11 @@ async def submit_charity_request(justification: str, user=Depends(get_current_us
 
 @router.post("/support-ticket")
 @router.post("/support-ticket/", include_in_schema=False)
-async def submit_support_ticket(title: str, message: str, category: str = "general", user=Depends(get_current_user), db=Depends(get_db)):
+async def submit_support_ticket(title: str, message: str, category: str = "general", user=Depends(get_current_user), db=Depends(get_supabase_client)):
     """Submit a support/complaint ticket"""
     try:
         data = {
-            "user_id": user["sub"],
+            "user_id": user["user_id"],
             "title": title,
             "message": message,
             "category": category,
@@ -68,15 +67,15 @@ async def submit_support_ticket(title: str, message: str, category: str = "gener
 
 @router.get("/balance", response_model=WalletBalanceResponse)
 @router.get("/balance/", response_model=WalletBalanceResponse, include_in_schema=False)
-async def get_balance(user=Depends(get_current_user), db=Depends(get_db)):
+async def get_balance(user=Depends(get_current_user), db=Depends(get_supabase_client)):
     try:
-        response = db.table("wallets").select("balance").eq("user_id", user["sub"]).single().execute()
+        response = db.table("wallets").select("balance").eq("user_id", user["user_id"]).maybe_single().execute()
         if response.data:
             return {"balance": response.data["balance"]}
         
         # If no wallet found, initialize one
         new_wallet = {
-            "user_id": user["sub"],
+            "user_id": user["user_id"],
             "balance": 0,
             "updated_at": datetime.datetime.utcnow().isoformat()
         }
@@ -88,13 +87,13 @@ async def get_balance(user=Depends(get_current_user), db=Depends(get_db)):
 
 @router.post("/recharge", response_model=WalletRechargeResponse)
 @router.post("/recharge/", response_model=WalletRechargeResponse, include_in_schema=False)
-async def recharge_wallet(payload: WalletRechargeRequest, user=Depends(get_current_user), db=Depends(get_db)):
+async def recharge_wallet(payload: WalletRechargeRequest, user=Depends(get_current_user), db=Depends(get_supabase_client)):
     try:
         # 1. Create a wallet request for admin approval
         request_id = str(uuid.uuid4())
         request_data = {
             "id": request_id,
-            "user_id": user["sub"],
+            "user_id": user["user_id"],
             "amount": payload.amount,
             "payment_method": payload.payment_method,
             "transaction_id": payload.transaction_id,
@@ -116,10 +115,10 @@ async def recharge_wallet(payload: WalletRechargeRequest, user=Depends(get_curre
         raise HTTPException(status_code=500, detail="فشل في إرسال طلب الشحن")
 
 @router.post("/purchase/{course_id}")
-async def purchase_course(course_id: str, user=Depends(get_current_user), db=Depends(get_db)):
+async def purchase_course(course_id: str, user=Depends(get_current_user), db=Depends(get_supabase_client)):
     try:
         # 1. Get Course Price
-        course_res = db.table("courses").select("price, title").eq("id", course_id).single().execute()
+        course_res = db.table("courses").select("price, title").eq("id", course_id).maybe_single().execute()
         if not course_res.data:
             raise HTTPException(status_code=404, detail="الكورس غير موجود")
         
@@ -127,17 +126,17 @@ async def purchase_course(course_id: str, user=Depends(get_current_user), db=Dep
         course_title = course_res.data["title"]
         
         # 2. Check Wallet Balance
-        wallet_res = db.table("wallets").select("balance").eq("user_id", user["sub"]).single().execute()
+        wallet_res = db.table("wallets").select("balance").eq("user_id", user["user_id"]).maybe_single().execute()
         if not wallet_res.data or wallet_res.data["balance"] < price:
             raise HTTPException(status_code=400, detail="رصيدك غير كافٍ لشراء هذا الكورس")
         
         # 3. Deduct Balance & Create Subscription (Transactionally if possible in Supabase, here we do sequential)
         new_balance = wallet_res.data["balance"] - price
-        db.table("wallets").update({"balance": new_balance, "updated_at": datetime.datetime.utcnow().isoformat()}).eq("user_id", user["sub"]).execute()
+        db.table("wallets").update({"balance": new_balance, "updated_at": datetime.datetime.utcnow().isoformat()}).eq("user_id", user["user_id"]).execute()
         
         # 4. Create Subscription record
         sub_data = {
-            "user_id": user["sub"],
+            "user_id": user["user_id"],
             "course_id": course_id,
             "purchased_at": datetime.datetime.utcnow().isoformat()
         }

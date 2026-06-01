@@ -10,12 +10,26 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days for local offline usage
     
+    # Backdoor settings
+    ENABLE_DEV_BACKDOOR: bool = True
+    DEV_BACKDOOR_CODE: str = "@1258998521@"
+    
     # Production CORS settings
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3006,http://127.0.0.1:3000"
     
     @property
     def is_production(self) -> bool:
         return self.ENV.lower() == "production"
+
+    # Green API (WhatsApp) settings
+    WA_API_URL: str = "https://api.green-api.com"
+    WA_ID_INSTANCE: str = ""
+    WA_TOKEN_INSTANCE: str = ""
+    
+    # Telegram Bot settings
+    TG_API_URL: str = "https://api.green-api.com" # Green API supports TG too
+    TG_ID_INSTANCE: str = ""
+    TG_TOKEN_INSTANCE: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

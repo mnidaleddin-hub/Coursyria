@@ -7,3 +7,5 @@ python-dotenv
 python-jose[cryptography]
 python-multipart
 passlib[bcrypt]
+phonenumbers
+httpx
