@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
-import '../screens/teacher_panel_screen.dart'; // Import the new screen
+// Import the new screen
 import '../controllers/wallet_controller.dart';
 import '../controllers/course_controller.dart';
 import '../core/constants/constants.dart';
@@ -12,7 +12,6 @@ import '../widgets/shimmer_loading.dart';
 import 'wallet_screen.dart';
 import 'course_details_screen.dart';
 
-import 'notification_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   HomeScreen({super.key});

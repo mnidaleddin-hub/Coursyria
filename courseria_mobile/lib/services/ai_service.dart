@@ -109,7 +109,7 @@ ${context != null ? "سياق إضافي للمحتوى: $context" : ""}
         }
       }
 
-      final String systemPrompt = """
+      const String systemPrompt = """
 أنت 'مسؤول الدعم الفني الذكي لمنصة كورسيريا' برتبة مهندس. مهمتك هي مساعدة الطلاب السوريين وحل مشاكلهم التقنية والتعليمية بلغة عربية مهذبة، دافئة، وداعمة جداً.
 
 قاعدتك المعرفية الصارمة:
@@ -141,7 +141,7 @@ ${context != null ? "سياق إضافي للمحتوى: $context" : ""}
             ...chatHistory.map((msg) => {
               "role": msg['role'],
               "content": msg['content']
-            }).toList(),
+            }),
           ],
           "temperature": 0.7,
         },

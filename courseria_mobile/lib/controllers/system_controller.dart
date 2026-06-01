@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,8 +23,15 @@ class SystemController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Load saved preferences if any
     _loadPreferences();
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    if (!kIsWeb) {
+      checkForUpdates();
+    }
   }
 
   void _loadPreferences() {
@@ -63,6 +70,7 @@ class SystemController extends GetxController {
 
   Future<void> checkForUpdates() async {
     try {
+      if (kIsWeb) return; // Skip update check on Web
       isCheckingUpdate.value = true;
       
       // 1. Get Current Local Version

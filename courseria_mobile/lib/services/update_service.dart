@@ -2,16 +2,24 @@ import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:get/get.dart';
 import 'package:dio/dio.dart';
-import 'dart:io';
 import '../screens/update_screen.dart';
+import 'dart:io' as io;
 
 class UpdateService {
   static final Dio _dio = Get.find<Dio>();
 
   static Future<void> checkVersion() async {
     try {
-      // 0. Only run on Android for APK updates
-      if (!Platform.isAndroid) return;
+      // 0. Only run on Android for APK updates, skip on Web
+      if (kIsWeb) return;
+      
+      // Safe platform check
+      bool isAndroid = false;
+      try {
+        isAndroid = !kIsWeb && io.Platform.isAndroid;
+      } catch (_) {}
+      
+      if (!isAndroid) return;
 
       // 1. Get current app version
       PackageInfo packageInfo = await PackageInfo.fromPlatform();

@@ -1,9 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
 import 'auth_controller.dart';
-import '../models/course_model.dart';
 
 class DashboardController extends GetxController {
   final SupabaseClient _supabase = Supabase.instance.client;

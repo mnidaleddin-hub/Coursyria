@@ -860,9 +860,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
     Get.bottomSheet(
       Container(
         padding: EdgeInsets.all(20.w),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.secondaryNavy,
-          borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -883,7 +883,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
                     snackPosition: SnackPosition.BOTTOM, backgroundColor: AppColors.accentTeal, colorText: Colors.white);
                 // Future implementation: Logic to switch between URLs/bitrates
               },
-            )).toList(),
+            )),
           ],
         ),
       ),
@@ -895,7 +895,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
     Get.bottomSheet(
       Container(
         padding: EdgeInsets.all(20.w),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.secondaryNavy,
           borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
         ),

@@ -2,8 +2,8 @@
 buildscript {
     ext.kotlin_version = '1.8.22'
     repositories {
-        // ترتيب المستودعات: Google ثم MavenCentral ثم Gradle Plugin Portal
-        // الـ gradlePluginPortal ضروري جداً لحل مشكلة الـ Groovy
+        // الأولوية للمستودع المحلي الموجود على جهاز المستخدم
+        maven { url 'file:///D:/Different_Files/offline-gmaven-stable/gmaven_stable' }
         google()
         mavenCentral()
         gradlePluginPortal()
@@ -16,7 +16,8 @@ buildscript {
 
 allprojects {
     repositories {
-        // ترتيب المستودعات: الرسمية أولاً بوجود الـ VPN ثم المرايا كاحتياط
+        // الأولوية للمستودع المحلي الموجود على جهاز المستخدم
+        maven { url 'file:///D:/Different_Files/offline-gmaven-stable/gmaven_stable' }
         google()
         mavenCentral()
         maven { url 'https://repo.huaweicloud.com/repository/google' }

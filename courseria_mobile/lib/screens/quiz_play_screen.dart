@@ -85,7 +85,7 @@ class QuizPlayScreen extends StatelessWidget {
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Text("فشل في تحميل الأسئلة. حاول مرة أخرى.", style: TextStyle(color: Colors.white)),
     );
   }
@@ -113,7 +113,7 @@ class QuizPlayScreen extends StatelessWidget {
                   SizedBox(width: 8.w),
                   Text(
                     "${_controller.timerSeconds.value} ثانية",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -203,7 +203,7 @@ class QuizPlayScreen extends StatelessWidget {
                   child: Center(
                     child: Text(
                       String.fromCharCode(65 + index), // A, B, C, D
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),

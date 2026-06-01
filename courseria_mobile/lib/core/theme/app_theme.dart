@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../constants/constants.dart';
 
@@ -5,6 +6,7 @@ class AppTheme {
   static ThemeData theme(Color accentColor) {
     return ThemeData(
       useMaterial3: true,
+      fontFamily: kIsWeb ? 'sans-serif' : null, // Use system font on web to avoid Roboto fetch errors
       primaryColor: AppColors.primaryNavy,
       scaffoldBackgroundColor: AppColors.bgCanvasStart,
       colorScheme: ColorScheme.fromSeed(

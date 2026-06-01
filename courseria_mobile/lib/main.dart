@@ -32,6 +32,8 @@ import 'controllers/dashboard_controller.dart';
 import 'screens/student_dashboard_screen.dart';
 import 'screens/downloads_manager_screen.dart';
 
+import 'screens/supabase_test_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -42,16 +44,28 @@ void main() async {
   LocalNotificationService.initialize();
 
   // Register Dio
-  Get.put(Dio(BaseOptions(baseUrl: AppConstants.baseUrl)), permanent: true);
-
-  // Initialize Supabase
-  await Supabase.initialize(
-    url: AppConstants.supabaseUrl,
-    anonKey: AppConstants.supabaseAnonKey,
+  Get.put(
+    Dio(BaseOptions(
+      baseUrl: AppConstants.baseUrl,
+      connectTimeout: const Duration(seconds: 120),
+      receiveTimeout: const Duration(seconds: 120),
+    )),
+    permanent: true,
   );
 
+  // Initialize Supabase
+  try {
+    await Supabase.initialize(
+      url: AppConstants.supabaseUrl,
+      anonKey: AppConstants.supabaseAnonKey,
+    );
+    debugPrint('✅ Supabase initialized successfully');
+  } catch (e) {
+    debugPrint('❌ Supabase initialization failed: $e');
+  }
+
   // Dependency Injection - Pre-initialize core controllers
-  Get.lazyPut(() => AuthController(), fenix: true);
+  Get.put(AuthController(), permanent: true);
   Get.lazyPut(() => WalletController(), fenix: true);
   Get.lazyPut(() => CourseController(), fenix: true);
   Get.lazyPut(() => NotificationController(), fenix: true);
@@ -59,9 +73,6 @@ void main() async {
   Get.lazyPut(() => LessonController(), fenix: true);
   Get.lazyPut(() => DashboardController(), fenix: true);
   Get.put(SystemController(), permanent: true); // Immediate for update check
-
-  // Check for updates before showing UI
-  Get.find<SystemController>().checkForUpdates();
 
   // Set Preferred Orientations
   await SystemChrome.setPreferredOrientations([
@@ -81,27 +92,26 @@ class CourseriaApp extends StatelessWidget {
       _enableSecureMode();
     }
 
+    final systemController = Get.find<SystemController>();
+
     return ScreenUtilInit(
       designSize: const Size(360, 690),
       minTextAdapt: true,
       splitScreenMode: true,
       builder: (_, child) {
-        final authController = Get.find<AuthController>();
-        final systemController = Get.find<SystemController>();
-
         return Obx(() => GetMaterialApp(
           debugShowCheckedModeBanner: false,
           title: AppConstants.appName,
           theme: AppTheme.theme(systemController.selectedThemeColor.value),
-          // Initial Route changed to Splash
           initialRoute: '/splash',
           getPages: [
             GetPage(name: '/splash', page: () => const SplashScreen()),
-            GetPage(name: '/login', page: () => LoginScreen()),
+            GetPage(name: '/login', page: () => const LoginScreen()),
             GetPage(name: '/home', page: () => HomeScreen()),
             GetPage(name: '/dashboard', page: () => const StudentDashboardScreen()),
             GetPage(
                 name: '/notifications', page: () => const NotificationScreen()),
+            GetPage(name: '/supabase_test', page: () => const SupabaseTestScreen()),
             GetPage(
                 name: '/teacher_panel', page: () => const TeacherPanelScreen()),
             GetPage(name: '/catalog', page: () => CourseCatalogScreen()),

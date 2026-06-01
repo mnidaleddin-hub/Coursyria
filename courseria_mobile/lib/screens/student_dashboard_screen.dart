@@ -5,7 +5,6 @@ import 'package:shimmer/shimmer.dart';
 import '../controllers/dashboard_controller.dart';
 import '../controllers/auth_controller.dart';
 import '../core/constants/constants.dart';
-import '../widgets/shimmer_loading.dart';
 
 class StudentDashboardScreen extends StatelessWidget {
   const StudentDashboardScreen({super.key});

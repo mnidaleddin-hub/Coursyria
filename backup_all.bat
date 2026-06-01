@@ -4,8 +4,8 @@ chcp 65001 >nul
 color 0A
 
 :: ==============================================================================
-:: PROJECT: COURSYRIA GLOBAL - ULTIMATE BACKUP PIPELINE
-:: PURPOSE: Backup EVERYTHING under D:\Coursyria\Coursyria
+:: PROJECT: COURSYRIA GLOBAL - DEV-ONLY BACKUP PIPELINE
+:: PURPOSE: Backup EVERYTHING under D:\Coursyria\Coursyria to branch dev ONLY
 :: ==============================================================================
 
 set "REPO_ROOT=D:\Coursyria\Coursyria"
@@ -15,7 +15,7 @@ set "LOG_FILE=%REPO_ROOT%\backup.log"
 
 cls
 echo ====================================================
-echo     COURSYRIA GLOBAL AUTOMATED BACKUP v3.2
+echo     COURSYRIA DEV-ONLY BACKUP v3.3
 echo ====================================================
 
 echo [*] Navigating to: %REPO_ROOT%
@@ -37,8 +37,10 @@ if not exist ".git" (
     git remote add origin "%REPO_URL%"
 )
 
-echo [*] Syncing branch...
-git fetch origin
+echo [*] Syncing remote dev branch info...
+git fetch origin dev 2>nul
+
+echo [*] Switching to dev branch...
 git checkout dev 2>nul || git checkout -b dev
 
 echo [*] Staging files...
@@ -46,21 +48,27 @@ git add -A
 
 set "COMMIT_MSG=Auto backup %date% %time%"
 echo [*] Committing: !COMMIT_MSG!
-:: Ensure we don't accidentally backup secrets (simple check)
-git commit -m "!COMMIT_MSG!" || echo [!] No changes.
+git commit -m "!COMMIT_MSG!" >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo [!] No new changes to commit.
+) else (
+    echo [✓] Commit successful.
+)
 
-echo [*] Pushing to GitHub...
-:: WARNING: If push fails, check for GitHub Push Protection (Secrets)
-:: Push to dev branch
-git push origin dev --force
-:: Also push to main to ensure visibility on GitHub home page
-git push origin dev:main --force
+echo [*] Pushing to GitHub (dev branch only)...
+git push origin dev --force-with-lease
 
 if %ERRORLEVEL% equ 0 (
-    echo SUCCESS: Backup completed.
+    echo ====================================================
+    echo     ✅✅✅  SUCCESS  ✅✅✅
+    echo     Backup completed and pushed to dev.
+    echo ====================================================
     echo [%date% %time%] SUCCESS >> "%LOG_FILE%"
 ) else (
-    echo FAILURE: Backup failed.
+    echo ====================================================
+    echo     ❌❌❌  FAILURE  ❌❌❌
+    echo     Push to dev failed.
+    echo ====================================================
     echo [%date% %time%] FAILED >> "%LOG_FILE%"
     popd
     pause
@@ -69,8 +77,12 @@ if %ERRORLEVEL% equ 0 (
 
 echo.
 echo LAST 3 ATTEMPTS:
-powershell -Command "if (Test-Path '%LOG_FILE%') { Get-Content '%LOG_FILE%' -Tail 3 } else { Write-Host 'No logs.' }"
+if exist "%LOG_FILE%" (
+    powershell -Command "Get-Content '%LOG_FILE%' -Tail 3" 2>nul
+) else (
+    echo No logs yet.
+)
 
-timeout /t 5
+timeout /t 5 >nul
 popd
 exit /b 0

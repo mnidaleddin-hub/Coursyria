@@ -10,6 +10,16 @@ import 'course_controller.dart';
 
 class TeacherController extends GetxController {
   final SupabaseClient _supabase = Supabase.instance.client;
+  var courseStats = <String, dynamic>{}.obs;
+
+  Future<void> fetchTeacherAnalytics(String teacherId) async {
+    try {
+      final response = await _supabase.rpc('get_teacher_analytics', params: {'teacher_id_param': teacherId});
+      courseStats.value = response ?? {};
+    } catch (e) {
+      debugPrint("Error fetching analytics: $e");
+    }
+  }
   final AuthController _authController = Get.find<AuthController>();
   final CourseController _courseController = Get.find<CourseController>();
 
@@ -50,7 +60,7 @@ class TeacherController extends GetxController {
       _courseController.fetchCoursesFromApi(); // Refresh to show in pending section
     } catch (e) {
       Get.snackbar("خطأ", "فشل إرسال الطلب: $e",
-          backgroundColor: Color(0xFFE63946), colorText: Colors.white);
+          backgroundColor: const Color(0xFFE63946), colorText: Colors.white);
     } finally {
       isLoading.value = false;
     }

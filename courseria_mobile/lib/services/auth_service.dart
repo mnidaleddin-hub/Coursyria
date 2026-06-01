@@ -9,10 +9,11 @@ class AuthService {
   ));
 
   // Request OTP
-  Future<Map<String, dynamic>> requestOTP(String contact) async {
+  Future<Map<String, dynamic>> requestOTP(String contact, {String channel = 'whatsapp'}) async {
     try {
       final response = await _dio.post('/auth/send-otp', data: {
         'contact': contact,
+        'channel': channel,
       });
       return response.data;
     } on DioException catch (e) {

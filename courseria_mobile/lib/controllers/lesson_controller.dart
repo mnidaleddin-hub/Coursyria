@@ -211,7 +211,8 @@ class LessonController extends GetxController {
           .order('timestamp', ascending: true);
       lessonNotes.assignAll(List<Map<String, dynamic>>.from(response));
     } catch (e) {
-      _logger.e("Error fetching notes: $e");
+      // If table doesn't exist, we skip
+      debugPrint("Note: lesson_notes table might be missing: $e");
     }
   }
 
@@ -226,8 +227,11 @@ class LessonController extends GetxController {
         'timestamp': timestamp,
       });
       fetchLessonNotes(lessonId);
+      Get.snackbar("تم الحفظ", "تم إضافة ملاحظتك الذكية بنجاح", 
+          backgroundColor: AppColors.accentTeal, colorText: Colors.white);
     } catch (e) {
       _logger.e("Error adding note: $e");
+      Get.snackbar("خطأ", "فشل في حفظ الملاحظة. تأكد من وجود جدول lesson_notes");
     }
   }
 

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:pinput/pinput.dart';
@@ -92,19 +91,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
 
   Widget _buildIconHeader() {
     return Container(
-      padding: EdgeInsets.all(20.r),
+      padding: EdgeInsets.all(24.r),
       decoration: BoxDecoration(
         color: AppColors.secondaryNavy,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
             color: AppColors.accentTeal.withOpacity(0.1),
-            blurRadius: 30,
-            spreadRadius: 10,
+            blurRadius: 40,
+            spreadRadius: 5,
           ),
         ],
+        border: Border.all(color: AppColors.accentTeal.withOpacity(0.2), width: 2),
       ),
-      child: Icon(Icons.shield_moon_outlined, size: 60.sp, color: AppColors.accentTeal),
+      child: Icon(Icons.mark_email_read_outlined, size: 64.sp, color: AppColors.accentTeal),
     );
   }
 
@@ -114,42 +114,58 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
           ? _authController.email.value 
           : _authController.phoneNumber.value;
       
-      String channelText = "";
+      String channelIcon = "";
+      Color channelColor = Colors.white;
       switch (_authController.selectedChannel.value) {
-        case OtpChannel.whatsapp: channelText = "واتساب"; break;
-        case OtpChannel.telegram: channelText = "تليغرام"; break;
-        case OtpChannel.email: channelText = "البريد الإلكتروني"; break;
+        case OtpChannel.whatsapp: 
+          channelIcon = "واتساب"; 
+          channelColor = Colors.greenAccent;
+          break;
+        case OtpChannel.telegram: 
+          channelIcon = "تليغرام"; 
+          channelColor = Colors.blueAccent;
+          break;
+        case OtpChannel.email: 
+          channelIcon = "البريد الإلكتروني"; 
+          channelColor = AppColors.accentTeal;
+          break;
       }
 
       return Column(
         children: [
           Text(
-            "تأكيد الرمز",
-            style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: Colors.white),
+            "تحقق من الأمان",
+            style: TextStyle(fontSize: 26.sp, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
           ),
-          SizedBox(height: 12.h),
-          Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                "أرسلنا رمزاً مكوناً من 6 أرقام إلى ",
-                style: TextStyle(fontSize: 14.sp, color: Colors.white70),
+          SizedBox(height: 16.h),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10.w),
+            child: Text.rich(
+              TextSpan(
+                text: "لقد أرسلنا رمز التأكيد إلى ",
+                style: TextStyle(fontSize: 15.sp, color: Colors.white60, height: 1.5),
+                children: [
+                  TextSpan(
+                    text: "\n$identifier",
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16.sp),
+                  ),
+                  const TextSpan(
+                    text: " عبر ",
+                    style: TextStyle(color: Colors.white60),
+                  ),
+                  TextSpan(
+                    text: channelIcon,
+                    style: TextStyle(color: channelColor, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
-              Text(
-                identifier,
-                style: const TextStyle(color: AppColors.accentTeal, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                " عبر $channelText",
-                style: TextStyle(fontSize: 14.sp, color: Colors.white70),
-              ),
-              IconButton(
-                onPressed: () => Get.back(),
-                icon: const Icon(Icons.edit_note_rounded, color: AppColors.accentTeal, size: 20),
-                tooltip: "تعديل البيانات",
-              ),
-            ],
+              textAlign: TextAlign.center,
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => Get.back(),
+            icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.accentTeal),
+            label: Text("تعديل الرقم", style: TextStyle(color: AppColors.accentTeal, fontSize: 13.sp)),
           ),
         ],
       );

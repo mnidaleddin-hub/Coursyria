@@ -21,7 +21,7 @@ class OfflineVideoManager {
   
   // Encryption key derivation
   enc.Key _deriveKey(String userId) {
-    String keyStr = (userId + "coursyria_secure_v2_salt").padRight(32, '0').substring(0, 32);
+    String keyStr = ("${userId}coursyria_secure_v2_salt").padRight(32, '0').substring(0, 32);
     return enc.Key.fromUtf8(keyStr);
   }
 

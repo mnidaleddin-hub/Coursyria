@@ -136,9 +136,9 @@ class AISupportChatScreen extends StatelessWidget {
   Widget _buildInputArea() {
     return Container(
       padding: EdgeInsets.all(20.w),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.secondaryNavy,
-        borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+        borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
       ),
       child: Row(
         children: [

@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Corporate Identity: Deep Midnight Navy Blue
-  static const Color primaryNavy = Color(0xFF0B132B);
-  static const Color secondaryNavy = Color(0xFF1C2541);
+  // Corporate Identity: Modern Indigo
+  static const Color primaryNavy = Color(0xFF6C63FF);
+  static const Color secondaryNavy = Color(0xFF5146C7);
 
-  // Dynamic Accent: Bright Vibrant Teal
-  static const Color accentTeal = Color(0xFF00B4D8);
-  static const Color lightTeal = Color(0xFF48CAE4);
+  // Dynamic Accent: Amber/Gold for achievements
+  static const Color accentTeal = Color(0xFFFFD700);
+  static const Color lightTeal = Color(0xFFFFE14D);
 
-  // Luxury Background Canvas (Muted Gray-Blue)
-  static const Color bgCanvasStart = Color(0xFFF8F9FA);
-  static const Color bgCanvasEnd = Color(0xFFE9ECEF);
+  // Background Canvas
+  static const Color bgCanvasStart = Color(0xFFF0F2F5);
+  static const Color bgCanvasEnd = Color(0xFFE4E7EB);
   static const Color surfaceWhite = Color(0xFFFFFFFF);
 
   // Typography & Status
-  static const Color textMain = Color(0xFF1C2541);
-  static const Color textMuted = Color(0xFF6C757D);
-  static const Color statusLocked = Color(0xFFADB5BD);
-  static const Color errorRed = Color(0xFFE63946);
+  static const Color textMain = Color(0xFF2D3436);
+  static const Color textMuted = Color(0xFF636E72);
+  static const Color statusLocked = Color(0xFFB2BEC3);
+  static const Color errorRed = Color(0xFFD63031);
+  static const Color successGreen = Color(0xFF00B894);
 
   // Backward compatibility aliases (to prevent immediate crashes)
   static const Color primaryBlue = primaryNavy;
@@ -92,8 +93,12 @@ class AppConstants {
   static const String supabaseAnonKey =
       "sb_publishable_LJG0_5Q4mXb7mFdTUgGQ0A_vDQTt9m5";
 
-  // Backend Base URL (for custom logic)
-  static const String baseUrl = "https://coursyria-api.onrender.com";
+  // Backend Base URL Configuration
+  static const bool isProduction = true; // Toggle this for development/production
+  
+  static String get baseUrl => isProduction 
+      ? "https://coursyria-api.onrender.com" 
+      : "http://localhost:8000";
 
   // Green-API Configurations
   // WhatsApp

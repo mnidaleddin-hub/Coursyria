@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart' hide Response;
 import 'package:get_storage/get_storage.dart';
@@ -193,7 +192,7 @@ class CourseController extends GetxController {
         "خطأ في الاتصال",
         "تعذر جلب البيانات من السيرفر. يرجى المحاولة لاحقاً.",
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Color(0xFFE63946),
+        backgroundColor: const Color(0xFFE63946),
         colorText: Colors.white,
       );
     } finally {

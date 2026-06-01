@@ -128,7 +128,7 @@ class SupportChatController extends GetxController {
       
       ticketStatus.value = 'pending_human';
       
-      final msg = "تم تحويل طلبك لوكيل بشري بنجاح. سيتواصل معك أحد مهندسينا في أقرب وقت ممكن. يمكنك الاستمرار في الدردشة معي هنا في هذه الأثناء.";
+      const msg = "تم تحويل طلبك لوكيل بشري بنجاح. سيتواصل معك أحد مهندسينا في أقرب وقت ممكن. يمكنك الاستمرار في الدردشة معي هنا في هذه الأثناء.";
       messages.add({"role": "assistant", "content": msg});
       await _saveMessage(msg, 'ai');
       
