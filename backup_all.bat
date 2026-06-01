@@ -31,15 +31,25 @@ set /p USE_PROXY="هل يتوفر بروكسي؟ (yes/non): "
 echo [*] Setting Git Configs...
 git config core.autocrlf true
 
+:: Clear environment variables proxy for this session
+set "http_proxy="
+set "https_proxy="
+set "HTTP_PROXY="
+set "HTTPS_PROXY="
+
 if /i "%USE_PROXY%"=="non" (
     echo [*] Running without proxy...
-    git config --local --unset http.proxy 2>nul
-    git config --local --unset https.proxy 2>nul
+    :: Override any global/system proxy by setting local to empty string
+    git config --local http.proxy ""
+    git config --local https.proxy ""
 ) else (
     echo [*] Running with proxy: %PROXY_SERVER%
     git config --local http.proxy "%PROXY_SERVER%"
     git config --local https.proxy "%PROXY_SERVER%"
 )
+
+echo [*] Current Proxy in Git:
+git config --local http.proxy
 
 if not exist ".git" (
     echo [*] Initializing Git...
