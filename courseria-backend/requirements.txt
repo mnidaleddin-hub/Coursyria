@@ -9,4 +9,4 @@ python-multipart
 passlib[bcrypt]
 phonenumbers
 httpx
-timezone
+pytz
