@@ -103,7 +103,7 @@ async def send_direct_email(to_email: str, otp: str):
         return False
 
 @router.post("/send-email-otp")
-async def send_email_otp(request: Request, db=Depends(get_supabase_client)):
+async def send_email_otp(request: Request, db=Depends(get_db)):
     """Generates and stores a 6-digit OTP and sends via Direct SMTP"""
     # Use admin client for existence checks to bypass RLS
     admin_db = supabase_admin
@@ -171,7 +171,7 @@ async def send_email_otp(request: Request, db=Depends(get_supabase_client)):
         raise HTTPException(status_code=500, detail=f"حدث خطأ أثناء إرسال الرمز: {str(e)}")
 
 @router.post("/verify-email-otp", response_model=Token)
-async def verify_email_otp(payload: OTPVerify, db=Depends(get_supabase_client)):
+async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
     """Verifies Email OTP from local DB and handles login/registration"""
     email = payload.contact.lower().strip()
     otp = payload.otp
