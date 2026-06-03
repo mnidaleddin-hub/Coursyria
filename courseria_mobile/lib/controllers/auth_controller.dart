@@ -498,7 +498,7 @@ class AuthController extends GetxController {
       triggerHaptic(AppHapticFeedback.success);
       
       if (Get.currentRoute != '/otp-verification') {
-        Get.to(() => const OtpVerificationScreen());
+        Get.toNamed('/otp-verification');
       }
       
       Get.snackbar("نجاح", "تم إرسال رمز التحقق بنجاح عبر ${selectedChannel.value.name}",

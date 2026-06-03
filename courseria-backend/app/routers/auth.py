@@ -103,8 +103,10 @@ async def send_direct_email(to_email: str, otp: str):
         return False
 
 @router.post("/send-email-otp")
-async def send_email_otp(request: Request, db=Depends(get_db)):
+async def send_email_otp(request: Request, db=Depends(get_supabase_client)):
     """Generates and stores a 6-digit OTP and sends via Direct SMTP"""
+    # Use admin client for existence checks to bypass RLS
+    admin_db = supabase_admin
     try:
         payload = await request.json()
         print(f"[DEBUG] Received send-email-otp request body: {payload}")
@@ -122,8 +124,8 @@ async def send_email_otp(request: Request, db=Depends(get_db)):
     if is_backdoor(email):
         return {"status": "success", "message": "Backdoor active", "is_backdoor": True}
 
-    # 2. Business Logic Check
-    user_res = db.table("users").select("*").eq("email", email).execute()
+    # 2. Business Logic Check - Using admin_db to bypass RLS
+    user_res = admin_db.table("users").select("*").eq("email", email).execute()
     user_exists = len(user_res.data) > 0
     
     if otp_type == "login" and not user_exists:
@@ -135,13 +137,24 @@ async def send_email_otp(request: Request, db=Depends(get_db)):
     otp = str(random.randint(100000, 999999))
     
     # Use the existing phone_verifications table for storage
-    # This works because it's just a (contact, code) mapping
+    # Reusing admin_db to ensure we can write to it
     try:
-        db.table("phone_verifications").upsert({
-            "phone_number": email, # Reusing the field for email
+        now = datetime.utcnow()
+        expires_at = (now + timedelta(minutes=10)).isoformat()
+        
+        verification_data = {
+            "phone_number": email, 
             "otp_code": otp,
-            "created_at": datetime.utcnow().isoformat()
-        }).execute()
+            "channel": "email", 
+            "expires_at": expires_at,
+            "created_at": now.isoformat()
+        }
+        
+        logger.info(f"[AUTH] Upserting Email OTP to DB: {verification_data}")
+        print(f"[DEBUG] DB Payload: {verification_data}")
+        
+        res = admin_db.table("phone_verifications").upsert(verification_data).execute()
+        logger.info(f"[AUTH] DB Response: {res.data if hasattr(res, 'data') else 'No data'}")
         
         # 4. Send via SMTP
         success = await send_direct_email(email, otp)
@@ -158,10 +171,11 @@ async def send_email_otp(request: Request, db=Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"حدث خطأ أثناء إرسال الرمز: {str(e)}")
 
 @router.post("/verify-email-otp", response_model=Token)
-async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
+async def verify_email_otp(payload: OTPVerify, db=Depends(get_supabase_client)):
     """Verifies Email OTP from local DB and handles login/registration"""
     email = payload.contact.lower().strip()
     otp = payload.otp
+    admin_db = supabase_admin
     
     # 1. Backdoor Check
     if is_backdoor(email) or is_backdoor(otp):
@@ -176,9 +190,9 @@ async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
             }
         }
 
-    # 2. Verify with Local DB (phone_verifications table)
+    # 2. Verify with Local DB (phone_verifications table) - Using admin_db to bypass RLS
     try:
-        verify_res = db.table("phone_verifications").select("*").eq("phone_number", email).eq("otp_code", otp).maybe_single().execute()
+        verify_res = admin_db.table("phone_verifications").select("*").eq("phone_number", email).eq("otp_code", otp).maybe_single().execute()
         
         if not verify_res.data:
             raise HTTPException(status_code=401, detail="الرمز غير صحيح أو منتهي الصلاحية")
@@ -191,50 +205,54 @@ async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
         # 3. Handle Registration/Login via Supabase Admin (Bypass OTP Auth)
         # Since we verified the OTP locally, we can now trust the email
         
-        # Check if user already exists in Supabase Auth
-        try:
-            # Try to find user by email
-            user_list = supabase_admin.auth.admin.list_users()
-            auth_user = next((u for u in user_list if u.email == email), None)
-            
-            if not auth_user:
-                # Create user if doesn't exist (Registration)
-                if not payload.full_name or not payload.password:
-                    raise HTTPException(status_code=400, detail="بيانات التسجيل غير مكتملة")
-                    
-                auth_res = supabase_admin.auth.admin.create_user({
-                    "email": email,
-                    "password": payload.password,
-                    "email_confirm": True,
-                    "user_metadata": {"full_name": payload.full_name, "role": "student"}
-                })
-                user_id = auth_res.user.id
-            else:
-                user_id = auth_user.id
-                
-        except Exception as auth_e:
-            logger.error(f"Auth Admin Error: {auth_e}")
-            raise HTTPException(status_code=500, detail="خطأ في إدارة الحسابات")
-
-        # 4. Sync with our users table
-        user_res = db.table("users").select("*").eq("id", user_id).maybe_single().execute()
-        user_data = user_res.data
+        # Check if user already exists in our local users table first (more efficient)
+        user_res = admin_db.table("users").select("*").eq("email", email).maybe_single().execute()
+        user_data = user_res.data if user_res else None
         
+        user_id = None
+        if user_data:
+            user_id = user_data["id"]
+        else:
+            # If not in local table, check Supabase Auth (Admin)
+            try:
+                # Note: list_users is used here as a fallback, but we should ideally use get_user_by_email if available
+                user_list = supabase_admin.auth.admin.list_users()
+                auth_user = next((u for u in user_list if u.email == email), None)
+                
+                if not auth_user:
+                    # Create user if doesn't exist (Registration)
+                    if not payload.full_name or not payload.password:
+                        raise HTTPException(status_code=400, detail="بيانات التسجيل غير مكتملة. الاسم الكامل وكلمة المرور مطلوبان.")
+                        
+                    auth_res = supabase_admin.auth.admin.create_user({
+                        "email": email,
+                        "password": payload.password,
+                        "email_confirm": True,
+                        "user_metadata": {"full_name": payload.full_name, "role": "student"}
+                    })
+                    user_id = auth_res.user.id
+                else:
+                    user_id = auth_user.id
+            except Exception as auth_e:
+                logger.error(f"Auth Admin Error: {auth_e}")
+                raise HTTPException(status_code=500, detail="خطأ في إدارة الحسابات في Supabase")
+
+        # 4. Sync with our users table if needed
         if not user_data:
             user_record = {
                 "id": user_id,
                 "email": email,
-                "full_name": payload.full_name or (auth_user.user_metadata.get('full_name') if auth_user else "User"),
+                "full_name": payload.full_name or "User",
                 "role": "student",
                 "device_id": payload.device_id,
                 "channel": "email",
                 "created_at": datetime.utcnow().isoformat()
             }
-            db.table("users").upsert(user_record).execute()
+            admin_db.table("users").upsert(user_record).execute()
             user_data = user_record
 
         # Delete used OTP
-        db.table("phone_verifications").delete().eq("phone_number", email).execute()
+        admin_db.table("phone_verifications").delete().eq("phone_number", email).execute()
 
         access_token = create_access_token(data={"sub": str(user_id), "role": user_data.get("role", "student")})
         

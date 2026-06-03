@@ -90,22 +90,32 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
   }
 
   Widget _buildIconHeader() {
-    return Container(
-      padding: EdgeInsets.all(24.r),
-      decoration: BoxDecoration(
-        color: AppColors.secondaryNavy,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.accentTeal.withOpacity(0.1),
-            blurRadius: 40,
-            spreadRadius: 5,
-          ),
-        ],
-        border: Border.all(color: AppColors.accentTeal.withOpacity(0.2), width: 2),
-      ),
-      child: Icon(Icons.mark_email_read_outlined, size: 64.sp, color: AppColors.accentTeal),
-    );
+    return Obx(() {
+      IconData channelIcon;
+      switch (_authController.selectedChannel.value) {
+        case OtpChannel.whatsapp: channelIcon = Icons.message; break;
+        case OtpChannel.telegram: channelIcon = Icons.send; break;
+        case OtpChannel.email: channelIcon = Icons.mail; break;
+        default: channelIcon = Icons.lock;
+      }
+      
+      return Container(
+        padding: EdgeInsets.all(24.r),
+        decoration: BoxDecoration(
+          color: AppColors.secondaryNavy,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.accentTeal.withOpacity(0.1),
+              blurRadius: 40,
+              spreadRadius: 5,
+            ),
+          ],
+          border: Border.all(color: AppColors.accentTeal.withOpacity(0.2), width: 2),
+        ),
+        child: Icon(channelIcon, size: 64.sp, color: AppColors.accentTeal),
+      );
+    });
   }
 
   Widget _buildHeaderText() {

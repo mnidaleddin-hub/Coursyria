@@ -32,6 +32,7 @@ import 'controllers/system_controller.dart';
 import 'controllers/dashboard_controller.dart';
 import 'screens/student_dashboard_screen.dart';
 import 'screens/downloads_manager_screen.dart';
+import 'screens/otp_verification_screen.dart';
 import 'core/theme/theme_controller.dart';
 import 'widgets/offline_banner.dart';
 
@@ -138,6 +139,7 @@ class CourseriaApp extends StatelessWidget {
             GetPage(name: '/leaderboard', page: () => const LeaderboardScreen()),
             GetPage(name: '/referral', page: () => const ReferralRewardsScreen()),
             GetPage(name: '/downloads', page: () => const DownloadsManagerScreen()),
+            GetPage(name: '/otp-verification', page: () => const OtpVerificationScreen()),
           ],
         ));
       },
