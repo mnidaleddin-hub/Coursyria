@@ -19,8 +19,6 @@ settings = get_settings()
 logger = logging.getLogger("courseria.auth")
 
 def is_backdoor(identifier: str) -> bool:
-
-def is_backdoor(identifier: str) -> bool:
     return settings.ENABLE_DEV_BACKDOOR and identifier == settings.DEV_BACKDOOR_CODE
 
 def create_backdoor_token():
