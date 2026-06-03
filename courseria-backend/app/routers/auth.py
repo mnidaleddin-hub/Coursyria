@@ -13,10 +13,7 @@ import asyncio
 import phonenumbers
 from phonenumbers import PhoneNumberFormat
 import logging
-import smtplib
 import random
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 router = APIRouter()
 settings = get_settings()
@@ -65,41 +62,51 @@ async def startup_sync(user=Depends(get_current_user), db=Depends(get_supabase_c
         print(f"!!! Startup Sync Error: {e}")
         raise HTTPException(status_code=500, detail="فشل مزامنة بيانات الإقلاع")
 
-async def send_direct_email(to_email: str, otp: str):
-    """Sends OTP via SMTP directly bypassing Supabase Auth constraints"""
-    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        logger.error("SMTP credentials not configured in environment")
+async def send_email_http(to_email: str, otp: str):
+    """Sends OTP via Resend HTTP API bypassing SMTP port blocks"""
+    if not settings.EMAIL_API_KEY:
+        logger.error("Resend API Key (EMAIL_API_KEY) not configured")
         return False
         
     try:
-        msg = MIMEMultipart()
-        msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_USER}>"
-        msg['To'] = to_email
-        msg['Subject'] = f"{otp} هو رمز التحقق الخاص بك في كورسيريا"
-
-        body = f"""
-        <html>
-            <body dir="rtl" style="font-family: Arial, sans-serif; text-align: center;">
-                <h2 style="color: #16213E;">مرحباً بك في كورسيريا</h2>
-                <p>رمز التحقق الخاص بك هو:</p>
-                <h1 style="color: #E94560; font-size: 36px; letter-spacing: 5px;">{otp}</h1>
-                <p>هذا الرمز صالح لمدة 10 دقائق. يرجى عدم مشاركته مع أحد.</p>
-                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="color: #888; font-size: 12px;">إذا لم تطلب هذا الرمز، يرجى تجاهل هذه الرسالة.</p>
-            </body>
-        </html>
+        url = settings.EMAIL_API_URL
+        headers = {
+            "Authorization": f"Bearer {settings.EMAIL_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        html_body = f"""
+        <div dir="rtl" style="font-family: Arial, sans-serif; text-align: center; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #16213E;">مرحباً بك في كورسيريا</h2>
+            <p style="font-size: 16px; color: #555;">رمز التحقق الخاص بك هو:</p>
+            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <h1 style="color: #E94560; font-size: 36px; letter-spacing: 5px; margin: 0;">{otp}</h1>
+            </div>
+            <p style="font-size: 14px; color: #888;">هذا الرمز صالح لمدة 10 دقائق. يرجى عدم مشاركته مع أحد.</p>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #aaa; font-size: 12px;">إذا لم تطلب هذا الرمز، يرجى تجاهل هذه الرسالة.</p>
+        </div>
         """
-        msg.attach(MIMEText(body, 'html'))
-
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.send_message(msg)
+        
+        payload = {
+            "from": settings.FROM_EMAIL,
+            "to": to_email,
+            "subject": f"{otp} هو رمز التحقق الخاص بك في كورسيريا",
+            "html": html_body
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload, timeout=30.0)
             
-        logger.info(f"Direct SMTP OTP sent successfully to {to_email}")
-        return True
+            if response.status_code in [200, 201]:
+                logger.info(f"Resend HTTP OTP sent successfully to {to_email}")
+                return True
+            else:
+                logger.error(f"Resend API Error: {response.status_code} - {response.text}")
+                return False
+                
     except Exception as e:
-        logger.error(f"SMTP Error: {e}")
+        logger.error(f"HTTP Email sending failed: {e}")
         return False
 
 @router.post("/send-email-otp")
@@ -150,8 +157,8 @@ async def send_email_otp(payload: EmailOTPRequest, db=Depends(get_db)):
         res = admin_db.table("phone_verifications").upsert(verification_data).execute()
         logger.info(f"[AUTH] DB Response: {res.data if hasattr(res, 'data') else 'No data'}")
         
-        # 4. Send via SMTP
-        success = await send_direct_email(email, otp)
+        # 4. Send via HTTP API
+        success = await send_email_http(email, otp)
         
         if success:
             return {"status": "success", "message": "تم إرسال رمز التحقق إلى بريدك الإلكتروني"}

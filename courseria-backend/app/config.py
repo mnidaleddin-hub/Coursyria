@@ -31,12 +31,10 @@ class Settings(BaseSettings):
     TG_ID_INSTANCE: str = ""
     TG_TOKEN_INSTANCE: str = ""
 
-    # SMTP Settings for Direct Email OTP
-    SMTP_HOST: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_FROM_NAME: str = "Coursyria Support"
+    # Resend Email API settings
+    EMAIL_API_KEY: str = ""
+    EMAIL_API_URL: str = "https://api.resend.com/emails"
+    FROM_EMAIL: str = "onboarding@resend.dev"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
