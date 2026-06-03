@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from app.models.wallet_schemas import WalletRechargeRequest, WalletRechargeResponse, WalletBalanceResponse, DepositReceiptRequest, WalletTransactionBase
 from app.dependencies import get_current_user, get_supabase_client
+from typing import List
 import uuid
 import datetime
 import logging

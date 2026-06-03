@@ -1,10 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, courses, wallet, admin, notifications, system
+print("Loading settings...")
 from app.config import get_settings
-
 settings = get_settings()
+print(f"Environment: {settings.ENV}")
+
+print("Loading routers...")
+from app.routers import auth, courses, wallet, admin, notifications, system
+print("Routers loaded successfully")
 
 import logging
 import sys
