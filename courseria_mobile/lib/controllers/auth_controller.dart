@@ -424,7 +424,20 @@ class AuthController extends GetxController {
           "type": type
         };
         debugPrint(">>> [AUTH] Sending Email OTP Request...");
-        final response = await dio.post("/auth/send-email-otp", data: requestData);
+        debugPrint(">>> [AUTH] Destination URL: ${dio.options.baseUrl}/auth/send-email-otp");
+        debugPrint(">>> [AUTH] Full Payload: $requestData");
+
+        final response = await dio.post(
+          "/auth/send-email-otp",
+          data: requestData,
+          options: Options(
+            validateStatus: (status) => true,
+          ),
+        );
+
+        debugPrint(">>> [AUTH] OTP Response Status: ${response.statusCode}");
+        debugPrint(">>> [AUTH] OTP Response Data: ${response.data}");
+
         if (response.statusCode != 200) {
           throw response.data is Map ? (response.data['detail'] ?? "فشل إرسال رمز التحقق") : "خطأ غير معروف من الخادم";
         }

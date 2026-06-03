@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:get/get.dart';
 import '../core/constants/constants.dart';
 
 class OfflineBanner extends StatelessWidget {

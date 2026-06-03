@@ -132,7 +132,7 @@ class CourseriaApp extends StatelessWidget {
             GetPage(name: '/supabase_test', page: () => const SupabaseTestScreen()),
             GetPage(
                 name: '/teacher_panel', page: () => const TeacherPanelScreen()),
-            GetPage(name: '/catalog', page: () => CourseCatalogScreen()),
+            GetPage(name: '/catalog', page: () => const CourseCatalogScreen()),
             GetPage(name: '/settings', page: () => const SettingsScreen()),
             GetPage(name: '/wallet_recharge', page: () => WalletRechargeScreen()),
             GetPage(name: '/leaderboard', page: () => const LeaderboardScreen()),

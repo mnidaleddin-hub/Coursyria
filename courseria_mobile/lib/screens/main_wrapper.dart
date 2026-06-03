@@ -25,7 +25,7 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
 
   final List<Widget> _pages = [
     HomeScreen(),
-    CourseCatalogScreen(),
+    const CourseCatalogScreen(),
     WalletScreen(),
     const SettingsScreen(),
   ];

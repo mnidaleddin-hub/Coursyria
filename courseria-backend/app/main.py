@@ -43,6 +43,10 @@ app.router.redirect_slashes = True
 
 # CORS Middleware setup
 origins = settings.ALLOWED_ORIGINS.split(",")
+if "https://coursyria-api.onrender.com" not in origins:
+    origins.append("https://coursyria-api.onrender.com")
+if "https://coursyria.onrender.com" not in origins:
+    origins.append("https://coursyria.onrender.com")
 
 app.add_middleware(
     CORSMiddleware,
