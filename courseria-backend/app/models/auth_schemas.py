@@ -20,6 +20,10 @@ class RegisterRequest(BaseModel):
     device_id: Optional[str] = None
     channel: Optional[str] = "email"
 
+    class Config:
+        extra = "ignore" # Allow extra fields without crashing
+        from_attributes = True # Support for ORM models if needed
+
 class OTPVerify(BaseModel):
     contact: str
     otp: str

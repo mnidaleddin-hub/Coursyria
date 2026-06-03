@@ -6,6 +6,17 @@ from app.config import get_settings
 
 settings = get_settings()
 
+import logging
+import sys
+
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("courseria")
+
 app = FastAPI(
     title="Courseria API",
     description="E-learning platform backend optimized for Syrian students",
@@ -17,8 +28,7 @@ app = FastAPI(
 # Global Exception Handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    if not settings.is_production:
-        print(f"!!! UNHANDLED ERROR: {str(exc)}")
+    logger.error(f"!!! UNHANDLED ERROR: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={"detail": "حدث خطأ داخلي في الخادم، يرجى المحاولة لاحقاً"},
@@ -52,16 +62,13 @@ async def extract_token_to_state(request: Request, call_next):
 
 @app.middleware("http")
 async def log_requests(request, call_next):
-    if not settings.is_production:
-        print(f"--> Incoming Request: {request.method} {request.url.path}")
+    logger.info(f"--> Incoming Request: {request.method} {request.url.path}")
     try:
         response = await call_next(request)
-        if not settings.is_production:
-            print(f"<-- Response Status: {response.status_code}")
+        logger.info(f"<-- Response Status: {response.status_code}")
         return response
     except Exception as e:
-        if not settings.is_production:
-            print(f"!!! CRITICAL BACKEND ERROR: {str(e)}")
+        logger.critical(f"!!! CRITICAL BACKEND ERROR: {str(e)}", exc_info=True)
         raise e
 
 # Root health-check endpoint

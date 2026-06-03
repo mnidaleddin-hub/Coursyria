@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from app.models.wallet_schemas import WalletRechargeRequest, WalletRechargeResponse, WalletBalanceResponse, DepositReceiptRequest
+from app.models.wallet_schemas import WalletRechargeRequest, WalletRechargeResponse, WalletBalanceResponse, DepositReceiptRequest, WalletTransactionBase
 from app.dependencies import get_current_user, get_supabase_client
 import uuid
 import datetime
+import logging
+
+logger = logging.getLogger("courseria.wallet")
 
 router = APIRouter()
 
@@ -64,6 +67,16 @@ async def submit_support_ticket(title: str, message: str, category: str = "gener
     except Exception as e:
         print(f"!!! Support Ticket Error: {e}")
         raise HTTPException(status_code=500, detail="فشل في إرسال تذكرة الدعم")
+
+@router.get("/transactions", response_model=List[WalletTransactionBase])
+async def get_transactions(user=Depends(get_current_user), db=Depends(get_supabase_client)):
+    """جلب سجل المعاملات للمستخدم الحالي"""
+    try:
+        response = db.table("wallet_transactions").select("*").eq("user_id", user["user_id"]).order("created_at", desc=True).execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"!!! Fetch Transactions Error: {e}")
+        raise HTTPException(status_code=500, detail="فشل في جلب سجل المعاملات")
 
 @router.get("/balance", response_model=WalletBalanceResponse)
 @router.get("/balance/", response_model=WalletBalanceResponse, include_in_schema=False)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from app.models.auth_schemas import OTPRequest, OTPVerify, Token, UserBase, LoginRequest, RegisterRequest
-from app.database import get_db, supabase_public
+from app.database import get_db, supabase_public, supabase_admin
 from app.dependencies import get_current_user, get_supabase_client
 from app.auth_utils import create_access_token
 from app.config import get_settings
@@ -9,11 +9,16 @@ import uuid
 import random
 import httpx
 import json
+import asyncio
 import phonenumbers
 from phonenumbers import PhoneNumberFormat
+import logging
 
 router = APIRouter()
 settings = get_settings()
+logger = logging.getLogger("courseria.auth")
+
+def is_backdoor(identifier: str) -> bool:
 
 def is_backdoor(identifier: str) -> bool:
     return settings.ENABLE_DEV_BACKDOOR and identifier == settings.DEV_BACKDOOR_CODE
@@ -63,7 +68,7 @@ async def startup_sync(user=Depends(get_current_user), db=Depends(get_supabase_c
 async def send_otp(payload: OTPRequest, db=Depends(get_db)):
     """Generates and stores a 6-digit OTP and sends via WhatsApp/Telegram (International Support)"""
     # CRITICAL LOGGING: Print the exact payload received from the network
-    print(f"\n[DEBUG] RECEIVED OTP REQUEST: {payload.dict()}")
+    logger.info(f"RECEIVED OTP REQUEST: {payload.dict()}")
     
     contact = payload.contact
     
@@ -72,64 +77,77 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
     if not channel:
         channel = "whatsapp"
         
-    print(f"[DEBUG] PROCESSED CHANNEL: '{channel}'")
+    logger.info(f"PROCESSED CHANNEL: '{channel}'")
     
     # 1. Backdoor Check
     if is_backdoor(contact):
-        print(f">>> [AUTH] Backdoor access for {contact}")
+        logger.info(f"Backdoor access for {contact}")
         return {"status": "success", "message": "Backdoor active", "is_backdoor": True}
 
-    print(f"\n>>> [AUTH] Starting OTP flow for {contact} via {channel}")
+    logger.info(f"Starting OTP flow for {contact} via {channel}")
 
-    # 2. International Phone Parsing
+    # 2. International Phone Parsing / Username Handling
     try:
-        print(f">>> [AUTH] Raw request payload: contact={contact}, channel={channel}")
+        logger.info(f"Raw request payload: contact={contact}, channel={channel}")
         
-        # Standardize contact format for parsing
-        phone_to_parse = contact if contact.startswith('+') else f"+{contact}"
-        parsed_number = phonenumbers.parse(phone_to_parse, None)
-        if not phonenumbers.is_valid_number(parsed_number):
-            print(f"!!! [AUTH] Invalid phone number: {contact}")
-            raise ValueError("رقم هاتف غير صالح")
-        
-        full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
-        # For Green API chat ID, we need the number without the '+'
-        clean_number_for_api = full_phone.replace('+', '')
-        print(f">>> [AUTH] Parsed Phone: {full_phone} (API ID: {clean_number_for_api})")
+        # TELEGRAM USERNAME CHECK: If contact starts with @, skip phone parsing
+        if contact.startswith("@"):
+            full_phone = contact # We reuse this variable name to keep code flow simple
+            clean_number_for_api = contact
+            logger.info(f"Detected Telegram Username: {contact}")
+        else:
+            # Standardize contact format for parsing
+            phone_to_parse = contact if contact.startswith('+') else f"+{contact}"
+            parsed_number = phonenumbers.parse(phone_to_parse, None)
+            if not phonenumbers.is_valid_number(parsed_number):
+                logger.error(f"Invalid phone number: {contact}")
+                raise ValueError("رقم هاتف غير صالح")
+            
+            full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
+            # For Green API chat ID, we need the number without the '+'
+            clean_number_for_api = full_phone.replace('+', '')
+            logger.info(f"Parsed Phone: {full_phone} (API ID: {clean_number_for_api})")
     except Exception as e:
-        print(f"!!! [AUTH] Phone Parsing Error: {e}")
+        if isinstance(e, ValueError): raise
+        logger.error(f"Parsing Error: {e}")
         raise HTTPException(
             status_code=400, 
-            detail="يرجى إدخال رقم هاتف صحيح بالصيغة الدولية (مثال: +963XXXXXXXXX)"
+            detail="يرجى إدخال رقم هاتف صحيح أو معرف تليغرام يبدأ بـ @"
         )
 
     # 3. Business Logic Check (Login vs Register)
     try:
-        user_res = db.table("users").select("id").eq("phone_number", full_phone).execute()
+        # Query based on either phone or telegram_username
+        if full_phone.startswith("@"):
+            user_res = db.table("users").select("*").eq("telegram_username", full_phone).execute()
+        else:
+            user_res = db.table("users").select("*").eq("phone_number", full_phone).execute()
+            
         user_exists = len(user_res.data) > 0
+        user_record = user_res.data[0] if user_exists else {}
         
         if payload.type == "login" and not user_exists:
-            print(f"!!! [AUTH] Login failed: User not found in DB: {full_phone}")
+            logger.error(f"Login failed: User not found in DB: {full_phone}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
                 detail="USER_NOT_FOUND"
             )
         elif payload.type == "register" and user_exists:
-            print(f"!!! [AUTH] Registration failed: User already exists: {full_phone}")
+            logger.error(f"Registration failed: User already exists: {full_phone}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
                 detail="USER_ALREADY_EXISTS"
             )
             
         if user_exists:
-            print(f">>> [AUTH] User verified for login: {user_res.data[0]['id']}")
+            logger.info(f"User verified for login: {user_res.data[0]['id']}")
         else:
-            print(f">>> [AUTH] Number verified for new registration: {full_phone}")
+            logger.info(f"Number verified for new registration: {full_phone}")
             
     except HTTPException:
         raise
     except Exception as e:
-        print(f"!!! [AUTH] DB Query Error: {e}")
+        logger.error(f"DB Query Error: {e}")
         raise HTTPException(status_code=500, detail="خطأ في التحقق من البيانات")
 
     # 4. Generate 6-digit OTP
@@ -138,7 +156,7 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
     # Special bypass for testing numbers
     if full_phone in ["+963934567890", "+9630934567890"]:
         otp_code = "123456"
-        print(">>> [AUTH] Using TEST OTP 123456")
+        logger.info("Using TEST OTP 123456")
 
     expires_at = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
     
@@ -148,22 +166,22 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
         from app.database import supabase_admin
         
         verification_data = {
-            "phone_number": full_phone,
+            "phone_number": full_phone, # This could be the @username now
             "otp_code": otp_code,
             "channel": channel, # This is guaranteed to be non-null string now
             "expires_at": expires_at,
             "created_at": datetime.utcnow().isoformat()
         }
         
-        print(f">>> [AUTH] UPSERTING TO DB: {verification_data}")
+        logger.info(f"UPSERTING TO DB: {verification_data}")
         
         supabase_admin.table("phone_verifications").upsert(verification_data).execute()
-        print(f">>> [AUTH] OTP {otp_code} stored/updated for {full_phone} via {channel}")
+        logger.info(f"OTP {otp_code} stored/updated for {full_phone} via {channel}")
     except Exception as e:
-        print(f"!!! [AUTH] Supabase Upsert Error: {e}")
+        logger.error(f"Supabase Upsert Error: {e}")
         # Log specific details about the error if possible
         if hasattr(e, 'message'):
-            print(f"!!! [AUTH] Error Message: {e.message}")
+            logger.error(f"Error Message: {e.message}")
         raise HTTPException(status_code=500, detail="فشل في حفظ رمز التحقق في قاعدة البيانات")
 
     # 6. Message configuration
@@ -174,22 +192,44 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
         api_url = settings.WA_API_URL
         id_instance = settings.WA_ID_INSTANCE
         token_instance = settings.WA_TOKEN_INSTANCE
-        chat_id = f"{clean_number_for_api}@c.us"
+        # GREEN API FIX: Use phone_number without '+' followed by @c.us
+        chat_id = clean_number_for_api.replace('+', '') + "@c.us"
     else:
         # Telegram via Green API or Direct (Assuming Green API based on config)
         api_url = settings.TG_API_URL
         id_instance = settings.TG_ID_INSTANCE
         token_instance = settings.TG_TOKEN_INSTANCE
-        chat_id = f"{clean_number_for_api}@t.me" # Telegram ID format in Green API
+        
+        # DEBUG LOGS FOR TELEGRAM CREDENTIALS
+        logger.info(f"TELEGRAM_ID_INSTANCE: {id_instance}")
+        if token_instance:
+            logger.info(f"TELEGRAM_TOKEN_INSTANCE is set (Length: {len(token_instance)})")
+        else:
+            logger.error("TELEGRAM_TOKEN_INSTANCE IS EMPTY OR NULL")
+
+        # TELEGRAM USERNAME LOGIC: Use @username if available, else fallback to phone@c.us
+        tg_username = user_record.get("telegram_username")
+        if contact.startswith("@"):
+            chat_id = contact
+            logger.info(f"Using direct Telegram Username from contact: {chat_id}")
+        elif tg_username:
+            if not tg_username.startswith("@"):
+                tg_username = f"@{tg_username}"
+            chat_id = tg_username
+            logger.info(f"Using Telegram Username from DB: {chat_id}")
+        else:
+            # Fallback to phone format (Removing '+' for Green API compatibility)
+            chat_id = clean_number_for_api.replace('+', '') + "@c.us"
+            logger.info(f"No Telegram Username found, using fallback: {chat_id}")
     
     if not id_instance or not token_instance:
-        print(f"!!! [AUTH] Missing credentials for {channel}")
+        logger.error(f"Missing credentials for {channel}")
         raise HTTPException(status_code=500, detail=f"إعدادات إرسال {channel} غير مكتملة على الخادم")
 
     endpoint = f"{api_url}/waInstance{id_instance}/sendMessage/{token_instance}"
     
-    print(f">>> [AUTH] Sending to {channel} via Green API...")
-    print(f">>> [AUTH] Endpoint: {api_url}/waInstance{id_instance}/sendMessage/****")
+    logger.info(f"Sending to {channel} via Green API...")
+    logger.info(f"Endpoint: {api_url}/waInstance{id_instance}/sendMessage/****")
 
     async with httpx.AsyncClient() as client:
         try:
@@ -204,15 +244,15 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
                     timeout=20.0
                 )
                 
-                print(f">>> [AUTH] Attempt {attempt+1} - Status: {response.status_code}")
+                logger.info(f"Attempt {attempt+1} - Status: {response.status_code}")
                 
                 if response.status_code == 200:
-                    print(f">>> [AUTH] Message sent successfully: {response.text}")
+                    logger.info(f"Message sent successfully: {response.text}")
                     return {"status": "success", "message": "تم إرسال رمز التحقق بنجاح"}
                 
-                print(f"!!! [AUTH] Attempt {attempt+1} failed: {response.text}")
+                logger.error(f"Attempt {attempt+1} failed: {response.text}")
                 if attempt == 0:
-                    print(">>> [AUTH] Retrying in 3 seconds...")
+                    logger.info("Retrying in 3 seconds...")
                     await asyncio.sleep(3)
             
             raise HTTPException(
@@ -221,10 +261,10 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
             )
             
         except httpx.TimeoutException:
-            print(f"!!! [AUTH] Green API Timeout on {channel}")
+            logger.error(f"Green API Timeout on {channel}")
             raise HTTPException(status_code=504, detail="انتهت مهلة الاتصال بمزود الخدمة (Green API)")
         except Exception as e:
-            print(f"!!! [AUTH] Green API Request Error: {e}")
+            logger.error(f"Green API Request Error: {e}")
             raise HTTPException(status_code=500, detail=f"خطأ تقني في إرسال الرسالة: {str(e)}")
 
 @router.get("/test-whatsapp")
@@ -299,7 +339,7 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
             }
         }
 
-    print(f"\n>>> [AUTH] Verifying OTP for {contact}")
+    logger.info(f"Verifying OTP for {contact}")
 
     # 2. International Phone Parsing for verification
     try:
@@ -313,7 +353,7 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
         otp_res = db.table("phone_verifications").select("*").eq("phone_number", full_phone).single().execute()
         
         if not otp_res.data:
-            print(f"!!! [AUTH] No verification request found for {full_phone}")
+            logger.error(f"No verification request found for {full_phone}")
             raise HTTPException(status_code=401, detail="لم يتم العثور على طلب تحقق لهذا الرقم")
             
         stored_otp = otp_res.data["otp_code"]
@@ -329,58 +369,61 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"!!! [AUTH] Verification DB Error: {e}")
+        logger.error(f"Verification DB Error: {e}")
         if payload.otp != "123456":
             raise HTTPException(status_code=401, detail="حدث خطأ أثناء التحقق من الرمز")
 
     # 4. Success! OTP Verified. Now handle Login or Registration.
     try:
         query = db.table("users").select("*")
-        if "@" in contact:
+        if "@" in contact and not contact.startswith("@"): # It's an email
             query = query.eq("email", contact)
-        else:
+        elif contact.startswith("@"): # It's a telegram username
+            query = query.eq("telegram_username", contact)
+        else: # It's a phone number
             query = query.eq("phone_number", full_phone)
         
         response = query.execute()
         user_data = response.data[0] if response.data else None
     except Exception as e:
-        print(f"!!! [AUTH] User Table Error: {e}")
+        logger.error(f"User Table Error: {e}")
         user_data = None
     
     # Registration Flow (if user doesn't exist and we have the data)
     if not user_data:
         if payload.full_name and payload.password:
-            print(f">>> [AUTH] Creating new user via OTP registration: {full_phone}")
+            logger.info(f"Creating new user via OTP registration: {contact}")
             try:
-                # 1. Sign up with Supabase Auth (using service role to bypass confirmation if needed)
-                # But here we use public client for simplicity or use admin if available
-                signup_res = supabase_public.auth.sign_up({
-                    "email": contact if "@" in contact else None,
-                    "phone": full_phone if "@" not in contact else None,
+                # 1. Sign up with Supabase Auth using Admin Client
+                signup_res = supabase_admin.auth.sign_up({
+                    "email": contact if "@" in contact and not contact.startswith("@") else None,
+                    "phone": full_phone if not contact.startswith("@") and "@" not in contact else None,
                     "password": payload.password,
-                    "options": {"data": {"full_name": payload.full_name}}
+                    "options": {"data": {"full_name": payload.full_name, "role": "student"}}
                 })
                 
                 if not signup_res.user:
+                    logger.error("Supabase Auth sign_up (OTP) returned no user")
                     raise HTTPException(status_code=400, detail="فشل إنشاء الحساب في نظام الحماية")
                 
                 user_id = signup_res.user.id
                 
-                # 2. Insert into custom users table
+                # 2. Insert into custom users table using Admin Client
                 user_data = {
                     "id": user_id,
-                    "email": contact if "@" in contact else None,
-                    "phone_number": full_phone if "@" not in contact else None,
+                    "email": contact if "@" in contact and not contact.startswith("@") else None,
+                    "phone_number": full_phone if not contact.startswith("@") and "@" not in contact else None,
+                    "telegram_username": contact if contact.startswith("@") else None,
                     "full_name": payload.full_name,
                     "role": "student",
                     "device_id": payload.device_id,
                     "channel": payload.channel or "whatsapp",
                     "created_at": datetime.utcnow().isoformat()
                 }
-                db.table("users").insert(user_data).execute()
-                print(f">>> [AUTH] New user created: {user_id}")
+                supabase_admin.table("users").upsert(user_data).execute()
+                logger.info(f"New user created via OTP: {user_id}")
             except Exception as e:
-                print(f"!!! [AUTH] Registration Error: {e}")
+                logger.error(f"OTP Registration Error: {e}")
                 raise HTTPException(status_code=400, detail=f"فشل إكمال عملية التسجيل: {str(e)}")
         else:
             raise HTTPException(status_code=404, detail="USER_NOT_FOUND")
@@ -411,10 +454,26 @@ async def login(payload: LoginRequest, db=Depends(get_db)):
 
     # Implement standard login with password via Supabase
     try:
+        # Determine identifier type
+        is_email = "@" in payload.identifier and not payload.identifier.startswith("@")
+        is_username = payload.identifier.startswith("@")
+        
+        auth_identifier = payload.identifier
+        
+        # If it's a telegram username, we need to find the email/phone associated with it first 
+        # because Supabase Auth doesn't know about custom usernames
+        if is_username:
+            user_res = db.table("users").select("email, phone_number").eq("telegram_username", payload.identifier).maybe_single().execute()
+            if not user_res.data:
+                raise HTTPException(status_code=404, detail="USER_NOT_FOUND")
+            auth_identifier = user_res.data.get("email") or user_res.data.get("phone_number")
+            if not auth_identifier:
+                raise HTTPException(status_code=404, detail="USER_NOT_FOUND")
+
         # We use supabase client to sign in with password
         supabase_response = supabase_public.auth.sign_in_with_password({
-            "email": payload.identifier if "@" in payload.identifier else None,
-            "phone": payload.identifier if "@" not in payload.identifier else None,
+            "email": auth_identifier if "@" in auth_identifier and not auth_identifier.startswith("@") else None,
+            "phone": auth_identifier if not auth_identifier.startswith("@") and "@" not in auth_identifier else None,
             "password": payload.password
         })
         
@@ -433,41 +492,89 @@ async def login(payload: LoginRequest, db=Depends(get_db)):
             "user": UserBase(**user_data)
         }
     except Exception as e:
-        print(f"!!! [AUTH] Login Error: {e}")
+        logger.error(f"Login Error: {e}")
         raise HTTPException(status_code=401, detail="فشل تسجيل الدخول. يرجى التحقق من بياناتك.")
 
 @router.post("/register", response_model=Token)
-async def register(payload: RegisterRequest, db=Depends(get_db)):
-    """User Registration with Password"""
+async def register(payload: RegisterRequest):
+    """User Registration with Password via Supabase Auth API (Admin Bypass)"""
+    # DEBUG: Print the received payload to console for Render logs
+    print(f"[DEBUG] Received register request: {payload.dict()}")
+    logger.info(f"Starting registration flow for: {payload.email or payload.phone_number}")
+    
     try:
-        # 1. Parse phone number if provided
+        # 1. Parse phone number or handle username
         full_phone = None
+        tg_username = None
+        
         if payload.phone_number:
-            parsed = phonenumbers.parse(payload.phone_number, None)
-            full_phone = phonenumbers.format_number(parsed, PhoneNumberFormat.E164)
+            if payload.phone_number.startswith("@"):
+                tg_username = payload.phone_number
+            else:
+                try:
+                    parsed = phonenumbers.parse(payload.phone_number, None)
+                    full_phone = phonenumbers.format_number(parsed, PhoneNumberFormat.E164)
+                except Exception as e:
+                    logger.warning(f"Phone parsing failed: {e}")
+                    full_phone = payload.phone_number
 
-        # 2. Sign up with Supabase Auth
-        signup_data = {
-            "email": payload.email,
-            "phone": full_phone,
-            "password": payload.password,
-            "options": {"data": {"full_name": payload.full_name}}
-        }
-        
-        # Remove None values
-        signup_data = {k: v for k, v in signup_data.items() if v is not None}
-        
-        supabase_response = supabase_public.auth.sign_up(signup_data)
-        
-        if not supabase_response.user:
-            raise HTTPException(status_code=400, detail="فشل إنشاء الحساب")
+        # 2. Sign up with Supabase Auth using Admin Client
+        try:
+            logger.info("Attempting Supabase Auth sign_up...")
+            
+            # Construct signup options data
+            user_metadata = {
+                "full_name": payload.full_name,
+                "role": "student",
+                "channel": payload.channel or "email"
+            }
+            
+            if full_phone:
+                user_metadata["phone_number"] = full_phone
 
-        # 3. Create user in our custom users table
-        user_id = supabase_response.user.id
-        user_data = {
+            signup_data = {
+                "password": payload.password,
+                "options": {
+                    "data": user_metadata
+                }
+            }
+            
+            # Handle email or phone for Auth
+            if payload.email:
+                signup_data["email"] = payload.email
+            elif full_phone:
+                signup_data["phone"] = full_phone
+            else:
+                raise HTTPException(status_code=400, detail="يجب توفير بريد إلكتروني أو رقم هاتف")
+
+            # Remove any keys that are None to be safe
+            signup_data = {k: v for k, v in signup_data.items() if v is not None}
+            
+            logger.info(f"Final signup_data being sent to Supabase: {signup_data}")
+            
+            auth_response = supabase_admin.auth.sign_up(signup_data)
+            
+            if not auth_response.user:
+                logger.error("Supabase Auth sign_up returned no user")
+                raise HTTPException(status_code=400, detail="فشل إنشاء الحساب في نظام الحماية")
+                
+            user_id = auth_response.user.id
+            logger.info(f"Auth user created successfully: {user_id}")
+            
+        except Exception as auth_err:
+            logger.error(f"Supabase Auth Error: {auth_err}")
+            error_msg = str(auth_err)
+            if "already registered" in error_msg.lower():
+                raise HTTPException(status_code=400, detail="هذا الحساب مسجل مسبقاً")
+            raise HTTPException(status_code=400, detail=f"خطأ في نظام الحماية: {error_msg}")
+
+        # 3. Create/Update user in our custom public.users table
+        # We use supabase_admin here to bypass RLS on the public.users table as well
+        user_record = {
             "id": user_id,
             "email": payload.email,
             "phone_number": full_phone,
+            "telegram_username": tg_username,
             "full_name": payload.full_name,
             "role": "student",
             "device_id": payload.device_id,
@@ -475,15 +582,25 @@ async def register(payload: RegisterRequest, db=Depends(get_db)):
             "created_at": datetime.utcnow().isoformat()
         }
         
-        db.table("users").insert(user_data).execute()
+        try:
+            logger.info(f"Inserting user {user_id} into public.users table")
+            supabase_admin.table("users").upsert(user_record).execute()
+            logger.info(f"User {user_id} record saved successfully")
+        except Exception as db_err:
+            logger.error(f"Database Table Error: {db_err}")
+            raise HTTPException(status_code=500, detail="تم إنشاء الحساب ولكن فشل حفظ البيانات الإضافية")
         
+        # 4. Generate local access token
         access_token = create_access_token(data={"sub": str(user_id), "role": "student"})
         
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "user": UserBase(**user_data)
+            "user": UserBase(**user_record)
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"!!! [AUTH] Register Error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Unexpected Registration Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="حدث خطأ غير متوقع أثناء التسجيل")

@@ -3,8 +3,31 @@ from app.models.course_schemas import CourseBase, CourseWithLessons, LessonBase,
 from app.dependencies import get_current_user, get_current_teacher, get_supabase_client
 from typing import List
 import datetime
+import logging
+
+logger = logging.getLogger("courseria.courses")
 
 router = APIRouter()
+
+@router.get("/favorites", response_model=List[dict])
+async def get_favorites(user=Depends(get_current_user), db=Depends(get_supabase_client)):
+    """جلب الكورسات المفضلة للمستخدم الحالي"""
+    try:
+        response = db.table("favorites").select("course_id, courses(*)").eq("user_id", user["user_id"]).execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"!!! Fetch Favorites Error: {e}")
+        raise HTTPException(status_code=500, detail="فشل في جلب المفضلة")
+
+@router.get("/my-courses", response_model=List[dict])
+async def get_my_courses(user=Depends(get_current_user), db=Depends(get_supabase_client)):
+    """جلب الكورسات التي اشترك فيها المستخدم الحالي"""
+    try:
+        response = db.table("user_courses").select("course_id, courses(*)").eq("user_id", user["user_id"]).execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"!!! Fetch My Courses Error: {e}")
+        raise HTTPException(status_code=500, detail="فشل في جلب كورساتك")
 
 # --- قراءة الكورسات (متاحة للجميع/الطلاب مع تفعيل RLS) ---
 
@@ -16,7 +39,7 @@ async def get_courses(db=Depends(get_supabase_client)):
         response = db.table("courses").select("*, lessons(*)").execute()
         return response.data
     except Exception as e:
-        print(f"!!! Supabase Fetch Error: {e}")
+        logger.error(f"Supabase Fetch Error: {e}")
         raise HTTPException(status_code=500, detail="فشل في جلب الكورسات")
 
 @router.get("/{course_id}", response_model=CourseWithLessons)
@@ -30,7 +53,7 @@ async def get_course_details(course_id: str, db=Depends(get_supabase_client)):
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"!!! Course Detail Error: {e}")
+        logger.error(f"Course Detail Error: {e}")
         raise HTTPException(status_code=500, detail="فشل في جلب تفاصيل الكورس")
 
 @router.get("/{course_id}/lessons", response_model=List[dict])
@@ -58,7 +81,7 @@ async def get_course_lessons(course_id: str, user=Depends(get_current_user), db=
             
         return secured_lessons
     except Exception as e:
-        print(f"!!! Lessons Fetch Error: {e}")
+        logger.error(f"Lessons Fetch Error: {e}")
         raise HTTPException(status_code=500, detail="فشل في جلب دروس الكورس")
 
 # --- إدارة الكورسات (خاصة بالمعلمين فقط) ---
