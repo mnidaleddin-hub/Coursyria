@@ -2,40 +2,31 @@
 setlocal
 
 echo ====================================================
-echo [CHROME MODE - ULTRA FAST] جاري تشغيل كورسيريا
+echo [CHROME MODE - OPTIMIZED] جاري تشغيل كورسيريا
 echo ====================================================
 
-:: قتل أي عملية تستخدم المنفذ 3000
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":3000" ^| find "LISTENING"') do (
-    taskkill /F /PID %%a 2>nul
-)
+:: 1. تنظيف العمليات العالقة والمنافذ
+echo [1/3] تنظيف العمليات والمنافذ...
+taskkill /F /IM dart.exe 2>nul
+taskkill /F /IM flutter_tool.exe 2>nul
 
-:: 1. إعدادات البروكسي (للطوارئ) واستثناء المحلي
-set HTTP_PROXY=http://10.12.207.175:7071
-set HTTPS_PROXY=http://10.12.207.175:7071
-set http_proxy=http://10.12.207.175:7071
-set https_proxy=http://10.12.207.175:7071
-set NO_PROXY=localhost,127.0.0.1,::1
-set no_proxy=localhost,127.0.0.1,::1
+:: قتل أي عملية تستخدم المنفذ 3000 أو 3001
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":3000" ^| find "LISTENING"') do taskkill /F /PID %%a 2>nul
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":3001" ^| find "LISTENING"') do taskkill /F /PID %%a 2>nul
 
 :: 2. الانتقال لمجلد المشروع
 cd /d "%~dp0courseria_mobile"
 
-echo [1/1] جاري تشغيل التطبيق (الوضع السريع جداً)...
-echo [INFO] تم تعطيل فحص التبعيات والاتصال بالإنترنت.
+echo [2/3] جاري تشغيل التطبيق (الوضع المحسن)...
+echo [INFO] تم تثبيت المنفذ وتثبيت المضيف لتقليل استهلاك الواي فاي.
 
-:: 3. تجربة المنفذ 3000، إذا فشل استخدم 3001
+:: 3. تشغيل التطبيق مع إعدادات تقليل حمل الشبكة
 set PORT=3000
-call flutter run -d chrome --no-pub --web-renderer html --web-port %PORT% --web-hostname 127.0.0.1 --no-version-check --web-browser-flag="--proxy-bypass-list=127.0.0.1;localhost" || (
-    set PORT=3001
-    echo [WARN] فشل المنفذ 3000، جاري التجربة على المنفذ %PORT%...
-    call flutter run -d chrome --no-pub --web-renderer html --web-port %PORT% --web-hostname 127.0.0.1 --no-version-check --web-browser-flag="--proxy-bypass-list=127.0.0.1;localhost"
-)
+call flutter run -d chrome --web-renderer html --web-port %PORT% --web-hostname 127.0.0.1 --no-version-check --web-browser-flag="--proxy-bypass-list=127.0.0.1;localhost" --web-browser-flag="--disable-extensions" --web-browser-flag="--incognito"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [ERROR] حدث خطأ أثناء تشغيل التطبيق.
-    echo [FIX] يرجى تصوير هذه النافذة وإرسالها للمساعد.
     echo.
     pause
 )

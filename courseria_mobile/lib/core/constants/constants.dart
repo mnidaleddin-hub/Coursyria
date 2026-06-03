@@ -5,6 +5,11 @@ class AppColors {
   static const Color primaryNavy = Color(0xFF6C63FF);
   static const Color secondaryNavy = Color(0xFF5146C7);
 
+  // Dark Mode Palette
+  static const Color darkBg = Color(0xFF0F0F1E);
+  static const Color darkSurface = Color(0xFF1A1A2E);
+  static const Color darkCard = Color(0xFF24243E);
+
   // Dynamic Accent: Amber/Gold for achievements
   static const Color accentTeal = Color(0xFFFFD700);
   static const Color lightTeal = Color(0xFFFFE14D);
@@ -17,9 +22,16 @@ class AppColors {
   // Typography & Status
   static const Color textMain = Color(0xFF2D3436);
   static const Color textMuted = Color(0xFF636E72);
+  static const Color textWhite = Color(0xFFFFFFFF);
   static const Color statusLocked = Color(0xFFB2BEC3);
   static const Color errorRed = Color(0xFFD63031);
   static const Color successGreen = Color(0xFF00B894);
+
+  // Dark Mode Colors
+  static const Color darkBgStart = Color(0xFF1A1A2E);
+  static const Color darkBgEnd = Color(0xFF16213E);
+  static const Color darkTextMain = Color(0xFFE94560);
+  static const Color darkTextMuted = Color(0xFF95A5A6);
 
   // Backward compatibility aliases (to prevent immediate crashes)
   static const Color primaryBlue = primaryNavy;

@@ -82,7 +82,12 @@ class WalletController extends GetxController {
     final XFile? image =
         await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
     if (image != null) {
-      selectedImagePath.value = image.path;
+      if (kIsWeb) {
+        // Handle web image picking (path is not accessible)
+        Get.snackbar("تنبيه", "رفع الصور عبر الويب غير مدعوم حالياً في هذه النسخة");
+      } else {
+        selectedImagePath.value = image.path;
+      }
     }
   }
 

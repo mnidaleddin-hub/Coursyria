@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../constants/constants.dart';
 
 class AppTheme {
-  static ThemeData theme(Color accentColor) {
+  static ThemeData lightTheme(Color accentColor) {
     return ThemeData(
       useMaterial3: true,
-      fontFamily: kIsWeb ? 'sans-serif' : null, // Use system font on web to avoid Roboto fetch errors
+      brightness: Brightness.light,
+      fontFamily: kIsWeb ? 'sans-serif' : null,
       primaryColor: AppColors.primaryNavy,
       scaffoldBackgroundColor: AppColors.bgCanvasStart,
       colorScheme: ColorScheme.fromSeed(
@@ -15,6 +16,7 @@ class AppTheme {
         secondary: accentColor,
         surface: AppColors.surfaceWhite,
         background: AppColors.bgCanvasStart,
+        brightness: Brightness.light,
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.primaryNavy,
@@ -22,24 +24,6 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
         titleTextStyle: AppTextStyles.header.copyWith(color: Colors.white, fontSize: 18),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryNavy,
-          foregroundColor: Colors.white,
-          textStyle: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          elevation: 2,
-        ),
-      ),
-      textTheme: TextTheme(
-        headlineLarge: AppTextStyles.header.copyWith(fontSize: 28),
-        headlineMedium: AppTextStyles.header.copyWith(fontSize: 22),
-        bodyLarge: AppTextStyles.body.copyWith(fontSize: 16),
-        bodyMedium: AppTextStyles.body.copyWith(fontSize: 14),
-        bodySmall: AppTextStyles.muted.copyWith(fontSize: 12),
       ),
       cardTheme: CardTheme(
         color: AppColors.surfaceWhite,
@@ -52,6 +36,36 @@ class AppTheme {
     );
   }
 
-  // For backward compatibility or default
-  static ThemeData get lightTheme => theme(AppColors.accentTeal);
+  static ThemeData darkTheme(Color accentColor) {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      fontFamily: kIsWeb ? 'sans-serif' : null,
+      primaryColor: AppColors.primaryNavy,
+      scaffoldBackgroundColor: AppColors.darkBgStart,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppColors.primaryNavy,
+        primary: AppColors.primaryNavy,
+        secondary: accentColor,
+        surface: AppColors.darkSurface,
+        background: AppColors.darkBgStart,
+        brightness: Brightness.dark,
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.darkBgEnd,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        titleTextStyle: AppTextStyles.header.copyWith(color: Colors.white, fontSize: 18),
+      ),
+      cardTheme: CardTheme(
+        color: AppColors.darkSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+        ),
+      ),
+    );
+  }
 }

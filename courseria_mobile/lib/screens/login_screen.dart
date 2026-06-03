@@ -5,8 +5,10 @@ import 'package:get/get.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:intl_phone_field/country_picker_dialog.dart';
 import 'package:animations/animations.dart';
+import 'package:local_auth/local_auth.dart';
 import '../controllers/auth_controller.dart';
 import '../core/constants/constants.dart';
+import '../widgets/shake_widget.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +20,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final AuthController _authController = Get.find<AuthController>();
   final _formKey = GlobalKey<FormState>();
+  final GlobalKey<ShakeWidgetState> _shakeKey = GlobalKey<ShakeWidgetState>();
+  final LocalAuthentication _localAuth = LocalAuthentication();
+  bool _canCheckBiometrics = false;
   final FocusNode _emailFocus = FocusNode();
   final FocusNode _phoneFocus = FocusNode();
   final FocusNode _nameFocus = FocusNode();
@@ -27,9 +32,37 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    _checkBiometrics();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _emailFocus.requestFocus();
     });
+  }
+
+  Future<void> _checkBiometrics() async {
+    try {
+      final bool canAuthenticateWithBiometrics = await _localAuth.canCheckBiometrics;
+      final bool canAuthenticate = canAuthenticateWithBiometrics || await _localAuth.isDeviceSupported();
+      setState(() {
+        _canCheckBiometrics = canAuthenticate;
+      });
+    } catch (e) {
+      debugPrint(e.toString());
+    }
+  }
+
+  Future<void> _authenticate() async {
+    try {
+      final bool didAuthenticate = await _localAuth.authenticate(
+        localizedReason: 'يرجى المصادقة للدخول السريع',
+        options: const AuthenticationOptions(biometricOnly: true),
+      );
+      if (didAuthenticate) {
+        // Handle successful biometric login
+        _authController.loginWithBiometrics();
+      }
+    } catch (e) {
+      debugPrint(e.toString());
+    }
   }
 
   @override
@@ -39,12 +72,18 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     _nameFocus.dispose();
     _passwordFocus.dispose();
     _confirmPasswordFocus.dispose();
+    // Controllers are managed by GetX, but focusing on local state
     super.dispose();
   }
 
   void _onMethodChange(AuthMethod method) {
     if (_authController.authMethod.value == method) return;
     _authController.authMethod.value = method;
+    
+    // Reset controllers when switching methods to avoid confusion
+    _authController.phoneController.clear();
+    _authController.emailController.clear();
+    
     _authController.triggerHaptic(AppHapticFeedback.light);
   }
 
@@ -62,11 +101,14 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           padding: EdgeInsets.symmetric(horizontal: 24.w),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: ShakeWidget(
+            key: _shakeKey,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 SizedBox(height: 30.h),
                 _buildHeader(),
                 SizedBox(height: 30.h),
@@ -80,13 +122,23 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                 SizedBox(height: 32.h),
                 _buildFooter(),
                 SizedBox(height: 20.h),
+                Obx(() => _authController.isLoginTab.value && _canCheckBiometrics
+                    ? Center(
+                        child: IconButton(
+                          onPressed: _authenticate,
+                          icon: const Icon(Icons.fingerprint, color: AppColors.accentTeal, size: 40),
+                          tooltip: "تسجيل الدخول بالبصمة",
+                        ),
+                      )
+                    : const SizedBox.shrink()),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHeader() {
     return Center(
@@ -164,16 +216,22 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       child: Row(
         children: [
           _buildToggleItem(
-            label: "البريد الإلكتروني",
+            label: "البريد",
             isSelected: _authController.authMethod.value == AuthMethod.email,
             onTap: () => _onMethodChange(AuthMethod.email),
-            fontSize: 12.sp,
+            fontSize: 11.sp,
           ),
           _buildToggleItem(
-            label: "رقم الهاتف",
+            label: "الهاتف",
             isSelected: _authController.authMethod.value == AuthMethod.phone,
             onTap: () => _onMethodChange(AuthMethod.phone),
-            fontSize: 12.sp,
+            fontSize: 11.sp,
+          ),
+          _buildToggleItem(
+            label: "تليغرام",
+            isSelected: _authController.authMethod.value == AuthMethod.telegram,
+            onTap: () => _onMethodChange(AuthMethod.telegram),
+            fontSize: 11.sp,
           ),
         ],
       ),
@@ -224,8 +282,60 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       },
       child: _authController.authMethod.value == AuthMethod.email 
           ? _buildEmailForm() 
-          : _buildPhoneForm(),
+          : (_authController.authMethod.value == AuthMethod.telegram 
+              ? _buildTelegramForm() 
+              : _buildPhoneForm()),
     ));
+  }
+
+  Widget _buildTelegramForm() {
+    return Column(
+      key: const ValueKey('telegram_form'),
+      children: [
+        if (!_authController.isLoginTab.value) ...[
+          _buildInputField(
+            label: "الاسم الكامل",
+            controller: _authController.nameController,
+            focusNode: _nameFocus,
+            hint: "أدخل اسمك الثلاثي",
+            icon: Icons.person_outline_rounded,
+          ),
+          SizedBox(height: 16.h),
+        ],
+        _buildInputField(
+          label: "معرف تليغرام",
+          controller: _authController.phoneController,
+          focusNode: _phoneFocus,
+          hint: "@username",
+          icon: Icons.alternate_email_rounded,
+          validator: (val) => (val?.length ?? 0) < 3 ? "المعرف قصير جداً" : null,
+        ),
+        if (!_authController.isLoginTab.value) ...[
+          SizedBox(height: 16.h),
+          _buildInputField(
+            label: "كلمة المرور",
+            controller: _authController.passwordController,
+            focusNode: _passwordFocus,
+            hint: "••••••••",
+            icon: Icons.lock_outline_rounded,
+            isPassword: true,
+            validator: (val) => (val?.length ?? 0) < 6 ? "كلمة المرور ضعيفة" : null,
+          ),
+          SizedBox(height: 16.h),
+          _buildInputField(
+            label: "تأكيد كلمة المرور",
+            controller: _authController.confirmPasswordController,
+            focusNode: _confirmPasswordFocus,
+            hint: "••••••••",
+            icon: Icons.lock_reset_rounded,
+            isPassword: true,
+            validator: (val) => val != _authController.passwordController.text ? "كلمات المرور غير متطابقة" : null,
+          ),
+        ],
+        SizedBox(height: 32.h),
+        _buildSubmitButton(),
+      ],
+    );
   }
 
   Widget _buildEmailForm() {
@@ -255,6 +365,19 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             return GetUtils.isEmail(val ?? "") ? null : "بريد إلكتروني غير صالح";
           },
         ),
+        if (!_authController.isLoginTab.value) ...[
+          SizedBox(height: 8.h),
+          Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, color: AppColors.accentTeal, size: 14),
+              SizedBox(width: 6.w),
+              Text(
+                "سيتم إرسال رمز تحقق إلى بريدك الإلكتروني",
+                style: TextStyle(color: Colors.white54, fontSize: 10.sp),
+              ),
+            ],
+          ),
+        ],
         SizedBox(height: 16.h),
         _buildInputField(
           label: "كلمة المرور",
@@ -458,26 +581,22 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   Widget _buildSubmitButton() {
-    return Obx(() => AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+    return Obx(() => SizedBox(
       width: double.infinity,
       height: 52.h,
       child: ElevatedButton(
         onPressed: _authController.isLoading.value ? null : () {
           _authController.triggerHaptic(AppHapticFeedback.medium);
-          // Manual validation for phone number
+          
           if (_authController.authMethod.value == AuthMethod.phone) {
             final phone = _authController.phoneController.text.trim();
             if (phone.length != 9) {
               Get.snackbar(
                 "خطأ في الإدخال", 
-                "يرجى إدخال رقم هاتف سوري صحيح مكون من 9 أرقام (بدون الصفر)",
+                "يرجى إدخال رقم هاتف سوري صحيح مكون من 9 أرقام",
                 snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: Colors.redAccent.withOpacity(0.9),
+                backgroundColor: Colors.redAccent,
                 colorText: Colors.white,
-                margin: EdgeInsets.all(15.r),
-                borderRadius: 15.r,
-                icon: const Icon(Icons.error_outline, color: Colors.white),
               );
               return;
             }
@@ -488,28 +607,21 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
               if (_authController.authMethod.value == AuthMethod.email) {
                 _authController.loginWithPassword();
               } else {
-                // Final check for channel
-                if (_authController.selectedChannel.value == OtpChannel.email) {
-                  _authController.selectedChannel.value = OtpChannel.whatsapp; // Auto-select if forgotten
-                }
                 _authController.sendOTP(type: "login");
               }
             } else {
-              // Same for registration
-              if (_authController.authMethod.value == AuthMethod.phone && 
-                  _authController.selectedChannel.value == OtpChannel.email) {
-                _authController.selectedChannel.value = OtpChannel.whatsapp;
-              }
               _authController.registerWithPassword();
             }
+          } else {
+            _shakeKey.currentState?.shake();
+            _authController.triggerHaptic(AppHapticFeedback.error);
           }
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.accentTeal,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r)),
-          elevation: _authController.isLoading.value ? 0 : 4,
-          shadowColor: AppColors.accentTeal.withOpacity(0.4),
+          elevation: 4,
         ),
         child: _authController.isLoading.value 
             ? SizedBox(

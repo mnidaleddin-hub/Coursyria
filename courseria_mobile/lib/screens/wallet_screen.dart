@@ -17,22 +17,72 @@ class WalletScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgCanvasStart,
-      appBar: AppBar(
-        title: Text("المحفظة الرقمية",
-            style: AppTextStyles.header.copyWith(color: Colors.white)),
-        centerTitle: true,
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          _buildAppBar(),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(24.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBalanceCard(),
+                  SizedBox(height: 32.h),
+                  _buildActivityChart(),
+                  SizedBox(height: 32.h),
+                  _buildActionSection(),
+                  SizedBox(height: 32.h),
+                  _buildTransactionHistory(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(24.w),
-        child: Column(
-          children: [
-            _buildBalanceCard(),
-            SizedBox(height: 32.h),
-            _buildActionSection(),
-            SizedBox(height: 32.h),
-            _buildTransactionHistory(),
-          ],
-        ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return SliverAppBar(
+      expandedHeight: 0,
+      floating: true,
+      pinned: true,
+      backgroundColor: AppColors.primaryNavy,
+      title: Text("المحفظة الرقمية", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18.sp)),
+      centerTitle: true,
+      elevation: 0,
+    );
+  }
+
+  Widget _buildActivityChart() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(24.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24.r),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("نشاط المحفظة", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.sp, color: AppColors.textMain)),
+              Text("آخر 7 أيام", style: TextStyle(fontSize: 12.sp, color: AppColors.textMuted)),
+            ],
+          ),
+          SizedBox(height: 24.h),
+          SizedBox(
+            height: 100.h,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _SimpleLineChartPainter(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -40,49 +90,72 @@ class WalletScreen extends StatelessWidget {
   Widget _buildBalanceCard() {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(30.w),
+      padding: EdgeInsets.all(32.w),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.primaryNavy, AppColors.secondaryNavy],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(30.r),
+        borderRadius: BorderRadius.circular(32.r),
         boxShadow: [
           BoxShadow(
               color: AppColors.primaryNavy.withOpacity(0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10))
+              blurRadius: 25,
+              offset: const Offset(0, 12))
         ],
       ),
       child: Column(
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("الرصيد المتاح",
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w500)),
+              Icon(Icons.account_balance_wallet_rounded, color: AppColors.accentTeal.withOpacity(0.5), size: 24),
+            ],
+          ),
+          SizedBox(height: 20.h),
+          Obx(() => Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _controller.balance.value,
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 40.sp,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2),
+              ),
+              Padding(
+                padding: EdgeInsets.only(bottom: 8.h, right: 8.w),
+                child: Text("ل.س", style: TextStyle(color: Colors.white70, fontSize: 16.sp, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          )),
+          SizedBox(height: 24.h),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
             decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20.r)),
-            child: Text("رصيدك الاستثماري الحالي",
-                style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600)),
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.auto_awesome, color: AppColors.accentTeal, size: 14),
+                SizedBox(width: 8.w),
+                Text("محفظة تعليمية ذكية",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.bold)),
+              ],
+            ),
           ),
-          SizedBox(height: 20.h),
-          Obx(() => Text(
-                "${_controller.balance.value} ليرة سورية جديدة",
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 38.sp,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5),
-              )),
-          SizedBox(height: 10.h),
-          Text("جاهز لتطوير مهاراتك",
-              style: TextStyle(
-                  color: AppColors.accentTeal.withOpacity(0.8),
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -92,46 +165,49 @@ class WalletScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("شحن الرصيد",
-            style: AppTextStyles.header.copyWith(fontSize: 18.sp)),
-        SizedBox(height: 16.h),
+        Text("عمليات سريعة",
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18.sp, color: AppColors.textMain)),
+        SizedBox(height: 20.h),
         Row(
           children: [
-            _buildQuickAction(Icons.add_photo_alternate_rounded, "إرسال إيصال",
-                () => _showDepositDialog()),
+            _buildQuickAction(Icons.upload_file_rounded, "إرسال إيصال",
+                () => _showDepositDialog(), Colors.blue),
             SizedBox(width: 16.w),
-            _buildQuickAction(Icons.qr_code_scanner_rounded, "كود تفعيل",
-                () => _showPromoCodeDialog()),
+            _buildQuickAction(Icons.vpn_key_rounded, "كود تفعيل",
+                () => _showPromoCodeDialog(), Colors.orange),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildQuickAction(IconData icon, String label, VoidCallback onTap) {
+  Widget _buildQuickAction(IconData icon, String label, VoidCallback onTap, Color color) {
     return Expanded(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20.r),
+        borderRadius: BorderRadius.circular(24.r),
         child: Container(
-          padding: EdgeInsets.symmetric(vertical: 20.h),
+          padding: EdgeInsets.symmetric(vertical: 24.h),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20.r),
-            border: Border.all(color: AppColors.accentTeal.withOpacity(0.1)),
+            borderRadius: BorderRadius.circular(24.r),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)
+              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 4))
             ],
           ),
           child: Column(
             children: [
-              Icon(icon, color: AppColors.accentTeal, size: 30.r),
-              SizedBox(height: 8.h),
+              Container(
+                padding: EdgeInsets.all(12.r),
+                decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                child: Icon(icon, color: color, size: 24.r),
+              ),
+              SizedBox(height: 12.h),
               Text(label,
                   style: TextStyle(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
                       fontSize: 14.sp,
-                      color: AppColors.primaryNavy)),
+                      color: AppColors.textMain)),
             ],
           ),
         ),
@@ -297,31 +373,85 @@ class WalletScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusBadge(TransactionStatus status) {
+  Widget _buildStatusBadge(TransactionStatus statusValue) {
     Color color;
     String label;
-    switch (status) {
-      case TransactionStatus.pending:
-        color = Colors.orange;
-        label = "قيد المراجعة";
-        break;
+    switch (statusValue) {
       case TransactionStatus.approved:
         color = Colors.green;
-        label = "تم الشحن";
+        label = "مقبول";
         break;
       case TransactionStatus.rejected:
         color = Colors.red;
         label = "مرفوض";
         break;
+      default:
+        color = Colors.orange;
+        label = "قيد المراجعة";
     }
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
       decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(6.r)),
+          borderRadius: BorderRadius.circular(8.r)),
       child: Text(label,
           style: TextStyle(
               color: color, fontSize: 10.sp, fontWeight: FontWeight.bold)),
     );
   }
+}
+
+class _SimpleLineChartPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.primaryNavy.withOpacity(0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [AppColors.primaryNavy.withOpacity(0.1), Colors.transparent],
+      ).createShader(Rect.fromLTRB(0, 0, size.width, size.height));
+
+    final path = Path();
+    final fillPath = Path();
+
+    final points = [
+      Offset(0, size.height * 0.8),
+      Offset(size.width * 0.2, size.height * 0.6),
+      Offset(size.width * 0.4, size.height * 0.9),
+      Offset(size.width * 0.6, size.height * 0.4),
+      Offset(size.width * 0.8, size.height * 0.7),
+      Offset(size.width, size.height * 0.2),
+    ];
+
+    path.moveTo(points[0].dx, points[0].dy);
+    fillPath.moveTo(points[0].dx, size.height);
+    fillPath.lineTo(points[0].dx, points[0].dy);
+
+    for (var i = 1; i < points.length; i++) {
+      path.lineTo(points[i].dx, points[i].dy);
+      fillPath.lineTo(points[i].dx, points[i].dy);
+    }
+
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, paint);
+
+    // Draw dots
+    final dotPaint = Paint()..color = AppColors.primaryNavy;
+    for (final point in points) {
+      canvas.drawCircle(point, 4, dotPaint);
+      canvas.drawCircle(point, 2, Paint()..color = Colors.white);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

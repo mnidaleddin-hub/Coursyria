@@ -36,9 +36,10 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
       });
 
       // 2. Simulate Push via Local Notification for the admin too
-      LocalNotificationService.showNotification(
-        _titleController.text,
-        _bodyController.text,
+      NotificationService.showNotification(
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: _titleController.text,
+        body: _bodyController.text,
       );
 
       Get.snackbar("نجاح", "تم إرسال الإشعار لكافة الطلاب بنجاح 🚀", 

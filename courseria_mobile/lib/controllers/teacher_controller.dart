@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
@@ -67,6 +68,10 @@ class TeacherController extends GetxController {
   }
 
   Future<void> pickVideo() async {
+    if (kIsWeb) {
+      Get.snackbar("تنبيه", "تحميل الملفات عبر المتصفح يحتاج إعدادات إضافية");
+      return;
+    }
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.video,
     );

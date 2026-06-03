@@ -30,11 +30,18 @@ class WalletService {
   }
 
   // Upload Receipt Image to Supabase Storage
-  Future<String?> uploadReceipt(File imageFile, String userId) async {
+  Future<String?> uploadReceipt(dynamic imageFile, String userId) async {
     try {
       final String fileName =
           'receipts/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await _supabase.storage.from('payments').upload(fileName, imageFile);
+      
+      if (kIsWeb) {
+        // For Web, imageFile should be Uint8List or XFile
+        await _supabase.storage.from('payments').uploadBinary(fileName, imageFile);
+      } else {
+        // For Mobile, imageFile is File
+        await _supabase.storage.from('payments').upload(fileName, imageFile as File);
+      }
 
       final String publicUrl =
           _supabase.storage.from('payments').getPublicUrl(fileName);
@@ -72,31 +79,14 @@ class WalletService {
   // Get Transaction History
   Future<List<WalletTransaction>> getTransactionHistory(String userId) async {
     try {
-      // In a real scenario, this would be an API call to FastAPI
-      // For now, returning mock data using the new model
-      await Future.delayed(const Duration(seconds: 1)); // Simulate network
-
-      final mockData = [
-        {
-          "id": "1",
-          "transaction_id": "TXN123456",
-          "amount": 50000.0,
-          "status": "approved",
-          "created_at": "2026-05-01T10:00:00Z",
-          "note": "User ID: $userId"
-        },
-        {
-          "id": "2",
-          "transaction_id": "TXN789012",
-          "amount": 25000.0,
-          "status": "pending",
-          "created_at": "2026-05-08T15:30:00Z",
-          "note": "User ID: $userId"
-        },
-      ];
-
-      return mockData.map((e) => WalletTransaction.fromJson(e)).toList();
+      final response = await _dio.get('/wallet/transactions');
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data;
+        return data.map((e) => WalletTransaction.fromJson(e)).toList();
+      }
+      return [];
     } catch (e) {
+      if (kDebugMode) debugPrint("Error fetching history: $e");
       return [];
     }
   }

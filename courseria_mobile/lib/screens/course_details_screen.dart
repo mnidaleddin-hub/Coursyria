@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:share_plus/share_plus.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/course_controller.dart';
+// ...
 import '../controllers/lesson_controller.dart';
 import '../core/constants/constants.dart';
 import '../models/course_model.dart';
@@ -44,6 +46,15 @@ class CourseDetailsScreen extends StatelessWidget {
               pinned: true,
               stretch: true,
               backgroundColor: AppColors.primaryNavy,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.share_rounded, color: Colors.white),
+                  onPressed: () {
+                    Share.share("تحقق من هذا الكورس الرائع على كورسيريا: ${course.title}");
+                  },
+                ),
+                SizedBox(width: 10.w),
+              ],
               flexibleSpace: FlexibleSpaceBar(
                 stretchModes: const [StretchMode.zoomBackground],
                 background: Stack(

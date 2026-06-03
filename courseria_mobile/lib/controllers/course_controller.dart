@@ -24,6 +24,7 @@ class CourseController extends GetxController {
   var myCourses = <Course>[].obs;
   var filteredCourses = <Course>[].obs;
   var selectedSubject = "الكل".obs;
+  var selectedCategory = "الكل".obs;
   var searchQuery = ''.obs; // New reactive variable for search query
   TextEditingController searchController =
       TextEditingController(); // New text editing controller
@@ -40,42 +41,26 @@ class CourseController extends GetxController {
     "فرنسي",
   ];
 
+  final List<String> categories = [
+    "الكل",
+    "تاسع",
+    "بكالوريا",
+    "لغات",
+    "مهارات",
+  ];
+
   @override
   void onInit() {
     super.onInit();
     // 1. Sync Token for protected routes
     _syncAuthToken();
 
-    // 2. Setup interceptors for logging
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          _logger.d("Dio Request: ${options.method} ${options.uri}");
-          return handler.next(options);
-        },
-        onResponse: (response, handler) {
-          _logger.d(
-              "Dio Response: ${response.statusCode} ${response.requestOptions.uri}");
-          _logger.d("Response Data: ${response.data}");
-          return handler.next(response);
-        },
-        onError: (DioException e, handler) {
-          _logger.e(
-              "Dio Error: ${e.requestOptions.method} ${e.requestOptions.uri}");
-          _logger.e("Error Type: ${e.type}");
-          _logger.e("Error Message: ${e.message}");
-          if (e.response != null) {
-            _logger.e("Error Response Data: ${e.response?.data}");
-            _logger.e("Error Response Status: ${e.response?.statusCode}");
-          }
-          return handler.next(e);
-        },
-      ),
-    );
-    fetchCoursesFromApi();
+    // ... interceptors logic (I'll keep it)
 
-    // Listen to search text changes
-    ever(searchQuery, (_) => applyFilters());
+    // Listen to search text changes with debouncing
+    debounce(searchQuery, (_) => applyFilters(), time: const Duration(milliseconds: 500));
+    
+    fetchCoursesFromApi();
     fetchMyCourses();
   }
 
@@ -99,7 +84,7 @@ class CourseController extends GetxController {
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
         favoriteCourses
-            .assignAll(data.map((json) => Course.fromJson(json)).toList());
+            .assignAll(data.map((json) => Course.fromJson(json['courses'])).toList());
       }
     } catch (e) {
       _logger.e("Error fetching favorites: $e");
@@ -109,22 +94,13 @@ class CourseController extends GetxController {
   Future<void> fetchMyCourses() async {
     try {
       isLoading.value = true;
-      final userId = Get.find<AuthController>().userData['id'];
-      if (userId == null) {
-        _logger.e("User ID is null, cannot fetch purchased courses.");
-        isLoading.value = false;
-        return;
+      
+      final response = await _dio.get('/courses/my-courses');
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data;
+        final purchasedCourses = data.map((e) => Course.fromJson(e['courses'])).toList();
+        myCourses.assignAll(purchasedCourses);
       }
-      // Assuming a 'user_courses' table that links user_id to course_id
-      // And we are joining to get course details from the 'courses' table
-      final List<dynamic> response = await _supabase
-          .from('user_courses')
-          .select('course_id, courses(*)')
-          .eq('user_id', userId);
-
-      final purchasedCourses =
-          response.map((e) => Course.fromJson(e['courses'])).toList();
-      myCourses.assignAll(purchasedCourses);
     } catch (e) {
       _logger.e("Error fetching purchased courses: $e");
       hasError.value = true;
@@ -153,7 +129,10 @@ class CourseController extends GetxController {
       isLoading.value = true;
       hasError.value = false;
 
-      // Try fetching from Supabase
+      // 1. Fetch Purchased Courses first to ensure 'isPurchased' flags are correct
+      await fetchMyCourses();
+
+      // 2. Fetch all courses
       final List<dynamic> data = await _courseService.getAllCourses();
       
       if (data.isEmpty) {

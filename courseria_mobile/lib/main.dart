@@ -10,13 +10,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants/constants.dart';
 import 'core/theme/app_theme.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_wrapper.dart';
 import 'screens/login_screen.dart';
 import 'screens/notification_screen.dart';
 import 'screens/teacher_panel_screen.dart';
 import 'screens/course_catalog_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/wallet_recharge_screen.dart';
 import 'screens/leaderboard_screen.dart';
 import 'screens/referral_rewards_screen.dart';
@@ -31,6 +32,8 @@ import 'controllers/system_controller.dart';
 import 'controllers/dashboard_controller.dart';
 import 'screens/student_dashboard_screen.dart';
 import 'screens/downloads_manager_screen.dart';
+import 'core/theme/theme_controller.dart';
+import 'widgets/offline_banner.dart';
 
 import 'screens/supabase_test_screen.dart';
 
@@ -41,7 +44,7 @@ void main() async {
   await GetStorage.init();
 
   // Initialize Notifications
-  LocalNotificationService.initialize();
+  await NotificationService.init();
 
   // Register Dio
   Get.put(
@@ -73,6 +76,7 @@ void main() async {
   Get.lazyPut(() => LessonController(), fenix: true);
   Get.lazyPut(() => DashboardController(), fenix: true);
   Get.put(SystemController(), permanent: true); // Immediate for update check
+  Get.put(ThemeController());
 
   // Set Preferred Orientations
   await SystemChrome.setPreferredOrientations([
@@ -93,21 +97,35 @@ class CourseriaApp extends StatelessWidget {
     }
 
     final systemController = Get.find<SystemController>();
+    final themeController = Get.find<ThemeController>();
 
     return ScreenUtilInit(
-      designSize: const Size(360, 690),
+      designSize: const Size(375, 812),
       minTextAdapt: true,
       splitScreenMode: true,
-      builder: (_, child) {
+      builder: (context, child) {
         return Obx(() => GetMaterialApp(
           debugShowCheckedModeBanner: false,
           title: AppConstants.appName,
-          theme: AppTheme.theme(systemController.selectedThemeColor.value),
+          locale: const Locale('ar', 'SY'),
+          fallbackLocale: const Locale('ar', 'SY'),
+          theme: AppTheme.lightTheme(systemController.selectedThemeColor.value),
+          darkTheme: AppTheme.darkTheme(systemController.selectedThemeColor.value),
+          themeMode: themeController.theme,
+          builder: (context, child) {
+            return Column(
+              children: [
+                const OfflineBanner(),
+                Expanded(child: child!),
+              ],
+            );
+          },
           initialRoute: '/splash',
           getPages: [
             GetPage(name: '/splash', page: () => const SplashScreen()),
+            GetPage(name: '/onboarding', page: () => const OnboardingScreen()),
             GetPage(name: '/login', page: () => const LoginScreen()),
-            GetPage(name: '/home', page: () => HomeScreen()),
+            GetPage(name: '/home', page: () => const MainWrapper()),
             GetPage(name: '/dashboard', page: () => const StudentDashboardScreen()),
             GetPage(
                 name: '/notifications', page: () => const NotificationScreen()),
