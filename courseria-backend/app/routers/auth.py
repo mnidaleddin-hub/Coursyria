@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request, Body
-from app.models.auth_schemas import OTPRequest, OTPVerify, Token, UserBase, LoginRequest, RegisterRequest
+from app.models.auth_schemas import OTPRequest, OTPVerify, Token, UserBase, LoginRequest, RegisterRequest, EmailOTPRequest
 from app.database import get_db, supabase_public, supabase_admin
 from app.dependencies import get_current_user, get_supabase_client
 from app.auth_utils import create_access_token
@@ -103,22 +103,16 @@ async def send_direct_email(to_email: str, otp: str):
         return False
 
 @router.post("/send-email-otp")
-async def send_email_otp(request: Request, db=Depends(get_db)):
+async def send_email_otp(payload: EmailOTPRequest, db=Depends(get_db)):
     """Generates and stores a 6-digit OTP and sends via Direct SMTP"""
     # Use admin client for existence checks to bypass RLS
     admin_db = supabase_admin
-    try:
-        payload = await request.json()
-        print(f"[DEBUG] Received send-email-otp request body: {payload}")
-    except Exception as e:
-        logger.error(f"Failed to parse JSON body: {e}")
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    email = payload.get("email", "").lower().strip()
-    otp_type = payload.get("type", "register")
+    
+    email = payload.email.lower().strip()
+    otp_type = payload.type
     
     if not email:
-        raise HTTPException(status_code=422, detail="البريد الإلكتروني مطلوب في جسم الطلب (Body)")
+        raise HTTPException(status_code=422, detail="البريد الإلكتروني مطلوب")
     
     # 1. Backdoor Check
     if is_backdoor(email):
