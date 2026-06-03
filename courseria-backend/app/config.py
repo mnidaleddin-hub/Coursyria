@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     TG_ID_INSTANCE: str = ""
     TG_TOKEN_INSTANCE: str = ""
 
+    # SMTP Settings for Direct Email OTP
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_NAME: str = "Coursyria Support"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 @lru_cache()

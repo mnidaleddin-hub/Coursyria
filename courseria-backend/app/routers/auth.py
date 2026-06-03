@@ -13,6 +13,10 @@ import asyncio
 import phonenumbers
 from phonenumbers import PhoneNumberFormat
 import logging
+import smtplib
+import random
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 router = APIRouter()
 settings = get_settings()
@@ -61,9 +65,46 @@ async def startup_sync(user=Depends(get_current_user), db=Depends(get_supabase_c
         print(f"!!! Startup Sync Error: {e}")
         raise HTTPException(status_code=500, detail="فشل مزامنة بيانات الإقلاع")
 
+async def send_direct_email(to_email: str, otp: str):
+    """Sends OTP via SMTP directly bypassing Supabase Auth constraints"""
+    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        logger.error("SMTP credentials not configured in environment")
+        return False
+        
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_USER}>"
+        msg['To'] = to_email
+        msg['Subject'] = f"{otp} هو رمز التحقق الخاص بك في كورسيريا"
+
+        body = f"""
+        <html>
+            <body dir="rtl" style="font-family: Arial, sans-serif; text-align: center;">
+                <h2 style="color: #16213E;">مرحباً بك في كورسيريا</h2>
+                <p>رمز التحقق الخاص بك هو:</p>
+                <h1 style="color: #E94560; font-size: 36px; letter-spacing: 5px;">{otp}</h1>
+                <p>هذا الرمز صالح لمدة 10 دقائق. يرجى عدم مشاركته مع أحد.</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #888; font-size: 12px;">إذا لم تطلب هذا الرمز، يرجى تجاهل هذه الرسالة.</p>
+            </body>
+        </html>
+        """
+        msg.attach(MIMEText(body, 'html'))
+
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.send_message(msg)
+            
+        logger.info(f"Direct SMTP OTP sent successfully to {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"SMTP Error: {e}")
+        return False
+
 @router.post("/send-email-otp")
 async def send_email_otp(request: Request, db=Depends(get_db)):
-    """Generates and stores a 6-digit OTP and sends via Supabase Auth Email OTP"""
+    """Generates and stores a 6-digit OTP and sends via Direct SMTP"""
     try:
         payload = await request.json()
         print(f"[DEBUG] Received send-email-otp request body: {payload}")
@@ -90,22 +131,35 @@ async def send_email_otp(request: Request, db=Depends(get_db)):
     elif otp_type == "register" and user_exists:
         raise HTTPException(status_code=400, detail="USER_ALREADY_EXISTS")
 
-    # 3. Use Supabase to send OTP email
-    # This uses Supabase's built-in email provider
+    # 3. Generate and Store OTP
+    otp = str(random.randint(100000, 999999))
+    
+    # Use the existing phone_verifications table for storage
+    # This works because it's just a (contact, code) mapping
     try:
-        # We use supabase_public to send the OTP. 
-        # Note: This might still be rate-limited by IP, but usually email OTP 
-        # has different limits than direct sign-up.
-        res = supabase_public.auth.sign_in_with_otp({"email": email})
-        logger.info(f"Supabase Email OTP sent to {email}")
-        return {"status": "success", "message": "تم إرسال رمز التحقق إلى بريدك الإلكتروني"}
+        db.table("phone_verifications").upsert({
+            "phone_number": email, # Reusing the field for email
+            "otp_code": otp,
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
+        
+        # 4. Send via SMTP
+        success = await send_direct_email(email, otp)
+        
+        if success:
+            return {"status": "success", "message": "تم إرسال رمز التحقق إلى بريدك الإلكتروني"}
+        else:
+            # Fallback to Supabase if SMTP fails (optional, but safer to error out)
+            logger.warning("SMTP failed, registration blocked.")
+            raise HTTPException(status_code=500, detail="فشل إرسال البريد الإلكتروني. يرجى مراجعة إعدادات SMTP")
+            
     except Exception as e:
-        logger.error(f"Supabase Email OTP Error: {e}")
-        raise HTTPException(status_code=500, detail="فشل إرسال رمز التحقق. يرجى المحاولة لاحقاً")
+        logger.error(f"Email OTP Flow Error: {e}")
+        raise HTTPException(status_code=500, detail=f"حدث خطأ أثناء إرسال الرمز: {str(e)}")
 
 @router.post("/verify-email-otp", response_model=Token)
 async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
-    """Verifies Email OTP and handles login/registration"""
+    """Verifies Email OTP from local DB and handles login/registration"""
     email = payload.contact.lower().strip()
     otp = payload.otp
     
@@ -122,55 +176,65 @@ async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
             }
         }
 
-    # 2. Verify with Supabase
+    # 2. Verify with Local DB (phone_verifications table)
     try:
-        # We try 'email' type first (for sign_in_with_otp)
-        # then 'signup' if it fails or based on logic.
-        # Supabase also uses 'magiclink' but usually 'email' covers the code.
-        try:
-            res = supabase_public.auth.verify_otp({
-                "email": email,
-                "token": otp,
-                "type": "email"
-            })
-        except:
-            res = supabase_public.auth.verify_otp({
-                "email": email,
-                "token": otp,
-                "type": "signup"
-            })
+        verify_res = db.table("phone_verifications").select("*").eq("phone_number", email).eq("otp_code", otp).maybe_single().execute()
         
-        if not res.user:
+        if not verify_res.data:
             raise HTTPException(status_code=401, detail="الرمز غير صحيح أو منتهي الصلاحية")
             
-        user_id = res.user.id
+        # Optional: Check if OTP is older than 10 mins
+        created_at = datetime.fromisoformat(verify_res.data['created_at'].replace('Z', '+00:00'))
+        if (datetime.utcnow().replace(tzinfo=None) - created_at.replace(tzinfo=None)).total_seconds() > 600:
+             raise HTTPException(status_code=401, detail="انتهت صلاحية الرمز (10 دقائق)")
+
+        # 3. Handle Registration/Login via Supabase Admin (Bypass OTP Auth)
+        # Since we verified the OTP locally, we can now trust the email
         
-        # 3. Sync with our users table
+        # Check if user already exists in Supabase Auth
+        try:
+            # Try to find user by email
+            user_list = supabase_admin.auth.admin.list_users()
+            auth_user = next((u for u in user_list if u.email == email), None)
+            
+            if not auth_user:
+                # Create user if doesn't exist (Registration)
+                if not payload.full_name or not payload.password:
+                    raise HTTPException(status_code=400, detail="بيانات التسجيل غير مكتملة")
+                    
+                auth_res = supabase_admin.auth.admin.create_user({
+                    "email": email,
+                    "password": payload.password,
+                    "email_confirm": True,
+                    "user_metadata": {"full_name": payload.full_name, "role": "student"}
+                })
+                user_id = auth_res.user.id
+            else:
+                user_id = auth_user.id
+                
+        except Exception as auth_e:
+            logger.error(f"Auth Admin Error: {auth_e}")
+            raise HTTPException(status_code=500, detail="خطأ في إدارة الحسابات")
+
+        # 4. Sync with our users table
         user_res = db.table("users").select("*").eq("id", user_id).maybe_single().execute()
         user_data = user_res.data
         
         if not user_data:
-            # New registration flow
-            if payload.full_name and payload.password:
-                user_record = {
-                    "id": user_id,
-                    "email": email,
-                    "full_name": payload.full_name,
-                    "role": "student",
-                    "device_id": payload.device_id,
-                    "channel": "email",
-                    "created_at": datetime.utcnow().isoformat()
-                }
-                # Update auth user password (since OTP login doesn't set it)
-                supabase_admin.auth.admin.update_user_by_id(user_id, {"password": payload.password})
-                
-                db.table("users").upsert(user_record).execute()
-                user_data = user_record
-            else:
-                # If we don't have registration info but user exists in Auth, 
-                # we might need to prompt for more info or it's a login.
-                # If it's a login and user_data is missing, it's a weird state.
-                raise HTTPException(status_code=404, detail="USER_DATA_MISSING")
+            user_record = {
+                "id": user_id,
+                "email": email,
+                "full_name": payload.full_name or (auth_user.user_metadata.get('full_name') if auth_user else "User"),
+                "role": "student",
+                "device_id": payload.device_id,
+                "channel": "email",
+                "created_at": datetime.utcnow().isoformat()
+            }
+            db.table("users").upsert(user_record).execute()
+            user_data = user_record
+
+        # Delete used OTP
+        db.table("phone_verifications").delete().eq("phone_number", email).execute()
 
         access_token = create_access_token(data={"sub": str(user_id), "role": user_data.get("role", "student")})
         
@@ -183,8 +247,8 @@ async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Email OTP Verification Error: {e}")
-        raise HTTPException(status_code=401, detail="فشل التحقق من الرمز")
+        logger.error(f"Local Email OTP Verification Error: {e}")
+        raise HTTPException(status_code=401, detail=f"فشل التحقق من الرمز: {str(e)}")
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
