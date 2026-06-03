@@ -197,21 +197,26 @@ async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
              raise HTTPException(status_code=401, detail="انتهت صلاحية الرمز (10 دقائق)")
 
         # 3. Handle Registration/Login via Supabase Admin (Bypass OTP Auth)
-        # Since we verified the OTP locally, we can now trust the email
-        
-        # Check if user already exists in our local users table first (more efficient)
-        user_res = admin_db.table("users").select("*").eq("email", email).maybe_single().execute()
-        user_data = user_res.data if user_res else None
+        # Check if user already exists in our local users table first
+        try:
+            user_res = admin_db.table("users").select("*").eq("email", email).maybe_single().execute()
+            user_data = user_res.data if hasattr(user_res, 'data') else None
+        except Exception as e:
+            logger.warning(f"Error checking local users table: {e}")
+            user_data = None
         
         user_id = None
-        if user_data:
-            user_id = user_data["id"]
+        if user_data and isinstance(user_data, dict):
+            user_id = user_data.get("id")
         else:
             # If not in local table, check Supabase Auth (Admin)
             try:
-                # Note: list_users is used here as a fallback, but we should ideally use get_user_by_email if available
-                user_list = supabase_admin.auth.admin.list_users()
-                auth_user = next((u for u in user_list if u.email == email), None)
+                # Use list_users as a simple way to find the user
+                # In production, get_user_by_email is better but list_users is safer for now
+                users_response = supabase_admin.auth.admin.list_users()
+                # Check if it's a list or an object with users attribute
+                all_users = users_response if isinstance(users_response, list) else getattr(users_response, 'users', [])
+                auth_user = next((u for u in all_users if u.email == email), None)
                 
                 if not auth_user:
                     # Create user if doesn't exist (Registration)
@@ -227,9 +232,11 @@ async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
                     user_id = auth_res.user.id
                 else:
                     user_id = auth_user.id
+            except HTTPException:
+                raise
             except Exception as auth_e:
                 logger.error(f"Auth Admin Error: {auth_e}")
-                raise HTTPException(status_code=500, detail="خطأ في إدارة الحسابات في Supabase")
+                raise HTTPException(status_code=500, detail=f"خطأ في إدارة الحسابات في Supabase: {str(auth_e)}")
 
         # 4. Sync with our users table if needed
         if not user_data:
@@ -242,8 +249,13 @@ async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
                 "channel": "email",
                 "created_at": datetime.utcnow().isoformat()
             }
-            admin_db.table("users").upsert(user_record).execute()
-            user_data = user_record
+            try:
+                admin_db.table("users").upsert(user_record).execute()
+                user_data = user_record
+            except Exception as sync_e:
+                logger.error(f"User Sync Error: {sync_e}")
+                # Even if sync fails, we have the user_id, but let's try to proceed
+                user_data = user_record
 
         # Delete used OTP
         admin_db.table("phone_verifications").delete().eq("phone_number", email).execute()
