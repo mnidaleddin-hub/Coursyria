@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request, Body
 from app.models.auth_schemas import OTPRequest, OTPVerify, Token, UserBase, LoginRequest, RegisterRequest
 from app.database import get_db, supabase_public, supabase_admin
 from app.dependencies import get_current_user, get_supabase_client
@@ -62,9 +62,20 @@ async def startup_sync(user=Depends(get_current_user), db=Depends(get_supabase_c
         raise HTTPException(status_code=500, detail="فشل مزامنة بيانات الإقلاع")
 
 @router.post("/send-email-otp")
-async def send_email_otp(payload: EmailOTPRequest, db=Depends(get_db)):
+async def send_email_otp(request: Request, db=Depends(get_db)):
     """Generates and stores a 6-digit OTP and sends via Supabase Auth Email OTP"""
-    email = payload.email.lower().strip()
+    try:
+        payload = await request.json()
+        print(f"[DEBUG] Received send-email-otp request body: {payload}")
+    except Exception as e:
+        logger.error(f"Failed to parse JSON body: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    email = payload.get("email", "").lower().strip()
+    otp_type = payload.get("type", "register")
+    
+    if not email:
+        raise HTTPException(status_code=422, detail="البريد الإلكتروني مطلوب في جسم الطلب (Body)")
     
     # 1. Backdoor Check
     if is_backdoor(email):
@@ -74,9 +85,9 @@ async def send_email_otp(payload: EmailOTPRequest, db=Depends(get_db)):
     user_res = db.table("users").select("*").eq("email", email).execute()
     user_exists = len(user_res.data) > 0
     
-    if payload.type == "login" and not user_exists:
+    if otp_type == "login" and not user_exists:
         raise HTTPException(status_code=404, detail="USER_NOT_FOUND")
-    elif payload.type == "register" and user_exists:
+    elif otp_type == "register" and user_exists:
         raise HTTPException(status_code=400, detail="USER_ALREADY_EXISTS")
 
     # 3. Use Supabase to send OTP email
