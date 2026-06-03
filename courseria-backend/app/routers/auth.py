@@ -61,6 +61,120 @@ async def startup_sync(user=Depends(get_current_user), db=Depends(get_supabase_c
         print(f"!!! Startup Sync Error: {e}")
         raise HTTPException(status_code=500, detail="فشل مزامنة بيانات الإقلاع")
 
+@router.post("/send-email-otp")
+async def send_email_otp(payload: EmailOTPRequest, db=Depends(get_db)):
+    """Generates and stores a 6-digit OTP and sends via Supabase Auth Email OTP"""
+    email = payload.email.lower().strip()
+    
+    # 1. Backdoor Check
+    if is_backdoor(email):
+        return {"status": "success", "message": "Backdoor active", "is_backdoor": True}
+
+    # 2. Business Logic Check
+    user_res = db.table("users").select("*").eq("email", email).execute()
+    user_exists = len(user_res.data) > 0
+    
+    if payload.type == "login" and not user_exists:
+        raise HTTPException(status_code=404, detail="USER_NOT_FOUND")
+    elif payload.type == "register" and user_exists:
+        raise HTTPException(status_code=400, detail="USER_ALREADY_EXISTS")
+
+    # 3. Use Supabase to send OTP email
+    # This uses Supabase's built-in email provider
+    try:
+        # We use supabase_public to send the OTP. 
+        # Note: This might still be rate-limited by IP, but usually email OTP 
+        # has different limits than direct sign-up.
+        res = supabase_public.auth.sign_in_with_otp({"email": email})
+        logger.info(f"Supabase Email OTP sent to {email}")
+        return {"status": "success", "message": "تم إرسال رمز التحقق إلى بريدك الإلكتروني"}
+    except Exception as e:
+        logger.error(f"Supabase Email OTP Error: {e}")
+        raise HTTPException(status_code=500, detail="فشل إرسال رمز التحقق. يرجى المحاولة لاحقاً")
+
+@router.post("/verify-email-otp", response_model=Token)
+async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
+    """Verifies Email OTP and handles login/registration"""
+    email = payload.contact.lower().strip()
+    otp = payload.otp
+    
+    # 1. Backdoor Check
+    if is_backdoor(email) or is_backdoor(otp):
+        return {
+            "access_token": create_backdoor_token(),
+            "token_type": "bearer",
+            "user": {
+                "id": "dev-user",
+                "email": "developer@coursyria.com",
+                "role": "developer_review",
+                "created_at": datetime.utcnow()
+            }
+        }
+
+    # 2. Verify with Supabase
+    try:
+        # We try 'email' type first (for sign_in_with_otp)
+        # then 'signup' if it fails or based on logic.
+        # Supabase also uses 'magiclink' but usually 'email' covers the code.
+        try:
+            res = supabase_public.auth.verify_otp({
+                "email": email,
+                "token": otp,
+                "type": "email"
+            })
+        except:
+            res = supabase_public.auth.verify_otp({
+                "email": email,
+                "token": otp,
+                "type": "signup"
+            })
+        
+        if not res.user:
+            raise HTTPException(status_code=401, detail="الرمز غير صحيح أو منتهي الصلاحية")
+            
+        user_id = res.user.id
+        
+        # 3. Sync with our users table
+        user_res = db.table("users").select("*").eq("id", user_id).maybe_single().execute()
+        user_data = user_res.data
+        
+        if not user_data:
+            # New registration flow
+            if payload.full_name and payload.password:
+                user_record = {
+                    "id": user_id,
+                    "email": email,
+                    "full_name": payload.full_name,
+                    "role": "student",
+                    "device_id": payload.device_id,
+                    "channel": "email",
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                # Update auth user password (since OTP login doesn't set it)
+                supabase_admin.auth.admin.update_user_by_id(user_id, {"password": payload.password})
+                
+                db.table("users").upsert(user_record).execute()
+                user_data = user_record
+            else:
+                # If we don't have registration info but user exists in Auth, 
+                # we might need to prompt for more info or it's a login.
+                # If it's a login and user_data is missing, it's a weird state.
+                raise HTTPException(status_code=404, detail="USER_DATA_MISSING")
+
+        access_token = create_access_token(data={"sub": str(user_id), "role": user_data.get("role", "student")})
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": UserBase(**user_data)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email OTP Verification Error: {e}")
+        raise HTTPException(status_code=401, detail="فشل التحقق من الرمز")
+
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
 async def send_otp(payload: OTPRequest, db=Depends(get_db)):

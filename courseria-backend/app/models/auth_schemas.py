@@ -3,9 +3,13 @@ from typing import Optional
 from datetime import datetime
 
 class OTPRequest(BaseModel):
-    contact: str = Field(..., description="International phone number (E.164 format)")
-    channel: Optional[str] = Field("whatsapp", description="whatsapp or telegram")
+    contact: str = Field(..., description="International phone number or email")
+    channel: Optional[str] = Field("whatsapp", description="whatsapp, telegram, or email")
     type: str = Field("login", description="login or register")
+
+class EmailOTPRequest(BaseModel):
+    email: str
+    type: str = Field("register", description="login or register")
 
 class LoginRequest(BaseModel):
     identifier: str # Email or Phone

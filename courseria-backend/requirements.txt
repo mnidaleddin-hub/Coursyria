@@ -1,7 +1,7 @@
 fastapi
 uvicorn[standard]
-supabase
-pydantic[email]
+supabase>=2.10.0
+pydantic[email]>=2.0.0
 pydantic-settings
 python-dotenv
 python-jose[cryptography]
@@ -9,3 +9,4 @@ python-multipart
 passlib[bcrypt]
 phonenumbers
 httpx
+timezone
