@@ -187,23 +187,27 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
         children: [
           if (_isMenuOpen) ...[
             if (isTeacher)
-              _buildMenuItem(Icons.dashboard_customize_rounded, "لوحة المعلم", () {
+              _buildMenuItem(PhosphorIcons.chalkboardTeacher(), "لوحة المعلم", () {
                 _toggleMenu();
                 Get.toNamed('/teacher-dashboard');
               }),
             if (isTeacher) SizedBox(height: 12.h),
-            _buildMenuItem(Icons.support_agent_rounded, "الدعم الفني", () {}),
+            _buildMenuItem(PhosphorIcons.chatTeardropDots(), "الدعم الفني", () {
+              _toggleMenu();
+              Get.toNamed('/ai-chat');
+            }),
             SizedBox(height: 12.h),
-            _buildMenuItem(Icons.share_rounded, "مشاركة", () {}),
+            _buildMenuItem(PhosphorIcons.shareNetwork(), "مشاركة", () {}),
             SizedBox(height: 12.h),
           ],
           FloatingActionButton(
             onPressed: _toggleMenu,
             backgroundColor: AppColors.accentTeal,
+            elevation: 4,
             child: AnimatedIcon(
               icon: AnimatedIcons.menu_close,
               progress: _fabController,
-              color: Colors.black,
+              color: Colors.white,
             ),
           ),
         ],
@@ -231,8 +235,8 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
           SizedBox(width: 8.w),
           Container(
             padding: EdgeInsets.all(10.r),
-            decoration: const BoxDecoration(color: AppColors.secondaryNavy, shape: BoxShape.circle),
-            child: Icon(icon, color: AppColors.accentTeal, size: 20),
+            decoration: const BoxDecoration(color: AppColors.primaryNavy, shape: BoxShape.circle),
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
         ],
       ).animate().fadeIn().slideX(begin: 0.2),

@@ -5,6 +5,7 @@ class Lesson {
   final String title;
   final String? description; // New field
   final String? duration;
+  final int durationSeconds; // New field
   final String? videoUrl;
   final bool isFree;
   final int? viewsCount; // New field
@@ -22,6 +23,7 @@ class Lesson {
     required this.title,
     this.description, // New field
     this.duration,
+    this.durationSeconds = 0, // New field
     this.videoUrl,
     this.isFree = false,
     this.viewsCount = 0, // New field
@@ -41,6 +43,7 @@ class Lesson {
       title: (json['title'] ?? '').toString(),
       description: (json['description'] ?? '').toString(), // New field
       duration: json['duration']?.toString(),
+      durationSeconds: (json['duration_seconds'] ?? 0) as int, // New field
       videoUrl: (json['video_url'] ?? json['content_path'])?.toString(),
       isFree: json['is_free'] ?? false,
       viewsCount: (json['views_count'] ?? 0) as int, // New field

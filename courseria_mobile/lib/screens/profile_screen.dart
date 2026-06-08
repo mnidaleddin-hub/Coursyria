@@ -11,6 +11,8 @@ import '../../controllers/gamification_controller.dart';
 import '../../models/user_profile_model.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 class ProfileScreen extends StatelessWidget {
   final AuthController _authController = Get.find<AuthController>();
   final AIController _aiController = Get.find<AIController>();
@@ -161,12 +163,12 @@ class ProfileScreen extends StatelessWidget {
             ),
             SizedBox(height: 16.h),
             Text(
-              _authController.userData['name'] ?? "مستخدم جديد",
+              userProfile.fullName ?? "محمد نضال الدين",
               style: AppTextStyles.header.copyWith(
                   fontSize: 22.sp, color: Colors.white),
             ),
             Text(
-              _authController.userData['email'] ?? "",
+              userProfile.username != null ? "@${userProfile.username}" : "+963930111876",
               style: AppTextStyles.body.copyWith(
                   fontSize: 14.sp, color: Colors.white70),
             ),
@@ -180,6 +182,13 @@ class ProfileScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildInfoCard(
+          "تواصل مع الدعم",
+          "+963930111876",
+          Icons.support_agent_rounded,
+          onTap: () => _launchWhatsApp("+963930111876"),
+        ),
+        SizedBox(height: 16.h),
         _buildInfoCard(
           "المرحلة الدراسية",
           userProfile.gradeLevel ?? "لم يتم التحديد",
@@ -423,44 +432,60 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoCard(String title, String value, IconData icon) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(20.r),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(20.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: AppColors.primaryNavy, size: 24.r),
-              SizedBox(width: 12.w),
-              Text(
-                title,
-                style: AppTextStyles.header.copyWith(
-                    fontSize: 16.sp, color: AppColors.primaryNavy),
-              ),
-            ],
-          ),
-          SizedBox(height: 12.h),
-          Text(
-            value,
-            style: AppTextStyles.body.copyWith(
-                fontSize: 14.sp, color: AppColors.textMain),
-          ),
-        ],
+  Widget _buildInfoCard(String title, String value, IconData icon, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(20.r),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(20.r),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: AppColors.primaryNavy, size: 24.r),
+                SizedBox(width: 12.w),
+                Text(
+                  title,
+                  style: AppTextStyles.header.copyWith(
+                      fontSize: 16.sp, color: AppColors.primaryNavy),
+                ),
+                if (onTap != null) ...[
+                  const Spacer(),
+                  const Icon(Icons.open_in_new_rounded, color: AppColors.accentTeal, size: 18),
+                ],
+              ],
+            ),
+            SizedBox(height: 12.h),
+            Text(
+              value,
+              style: AppTextStyles.body.copyWith(
+                  fontSize: 14.sp, color: AppColors.textMain),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _launchWhatsApp(String phone) async {
+    final url = Uri.parse("https://wa.me/${phone.replaceAll('+', '')}");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      Get.snackbar("خطأ", "تعذر فتح واتساب.");
+    }
   }
 
   void _showPickImageBottomSheet() {

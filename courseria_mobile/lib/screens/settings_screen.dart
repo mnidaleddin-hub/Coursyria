@@ -93,12 +93,17 @@ class SettingsScreen extends StatelessWidget {
           SizedBox(height: 24.h),
           _buildSectionTitle("عن كورسيريا"),
           _buildSettingTile(
+            icon: Icons.help_outline_rounded,
+            title: "الأسئلة الشائعة",
+            onTap: () => Get.toNamed('/faqs'),
+          ),
+          _buildSettingTile(
             icon: Icons.info_outline_rounded,
             title: "عن التطبيق",
             onTap: () => Get.toNamed('/app-info'),
           ),
           _buildSettingTile(
-            icon: Icons.help_outline_rounded,
+            icon: Icons.support_agent_rounded,
             title: "مركز المساعدة",
             onTap: () => Get.toNamed('/help'),
           ),

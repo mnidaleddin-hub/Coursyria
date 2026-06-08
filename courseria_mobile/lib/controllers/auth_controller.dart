@@ -86,7 +86,10 @@ class AuthController extends GetxController {
       final String publicUrl = _supabase.storage.from('avatars').getPublicUrl(filePath);
       
       // Update the user_profiles table with the new avatar URL
-      await _supabase.from('user_profiles').update({'avatar_url': publicUrl}).eq('id', userId);
+      await _supabase.from('user_profiles').update({
+        'avatar_url': publicUrl,
+        'full_name': userData['name'], // Ensure name is synced
+      }).eq('id', userId);
       
       // Refresh local user profile data
       await fetchUserProfile(); 
@@ -125,6 +128,13 @@ class AuthController extends GetxController {
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) throw "User not logged in.";
+
+      // If 'full_name' is provided in data, also update the auth metadata
+      if (data.containsKey('full_name')) {
+        await _supabase.auth.updateUser(UserAttributes(data: {'name': data['full_name']}));
+        userData['name'] = data['full_name'];
+        userData.refresh();
+      }
 
       await _supabase.from('user_profiles').update(data).eq('id', userId);
       await fetchUserProfile(); // Refresh local profile data

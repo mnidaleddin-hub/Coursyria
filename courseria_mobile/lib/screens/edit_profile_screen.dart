@@ -53,6 +53,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _saveProfile() async {
     final Map<String, dynamic> data = {
+      'full_name': _fullNameController.text.trim(),
       'bio': _bioController.text.trim(),
       'grade_level': _selectedGradeLevel,
       'interests': _interestsController.text
@@ -61,19 +62,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .where((e) => e.isNotEmpty)
           .toList(),
     };
-
-    // Handle full name update separately if it's not part of user_profiles table
-    // Assuming 'name' is directly in authController.userData for simplicity
-    final currentName = _authController.userData['name'];
-    if (_fullNameController.text.trim() != currentName) {
-      // This typically requires a separate update call to auth system
-      // For Supabase, it would be `_supabase.auth.updateUser(UserAttributes(data: {'name': _fullNameController.text}))`
-      // For now, we'll just update the local userData observable and prompt user to refresh
-      _authController.userData['name'] = _fullNameController.text.trim();
-      _authController.userData.refresh();
-      Get.snackbar("تنبيه", "تم تحديث الاسم بنجاح (قد يتطلب إعادة تسجيل الدخول لتحديث كامل)",
-          backgroundColor: AppColors.accentTeal, colorText: Colors.white);
-    }
 
     await _authController.updateUserProfile(data);
     Get.back(); // Go back to profile screen after saving

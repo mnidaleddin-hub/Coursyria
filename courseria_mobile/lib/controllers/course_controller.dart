@@ -141,18 +141,23 @@ class CourseController extends GetxController {
     try {
       isLoading.value = true;
       
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
       final systemController = Get.find<SystemController>();
       if (systemController.isOfflineMode.value) {
         await Future.delayed(const Duration(milliseconds: 500));
         return;
       }
 
-      final response = await _dio.get('/courses/my-courses');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        final purchasedCourses = data.map((e) => Course.fromJson(e['courses'])).toList();
-        myCourses.assignAll(purchasedCourses);
-      }
+      // Fetch purchased courses from Supabase directly
+      final response = await _supabase
+          .from('user_courses') // Assuming this table tracks ownership
+          .select('*, courses(*)')
+          .eq('user_id', userId);
+      
+      final purchasedCourses = (response as List).map((e) => Course.fromJson(e['courses'])).toList();
+      myCourses.assignAll(purchasedCourses);
     } catch (e) {
       _logger.e("Error fetching purchased courses: $e");
       hasError.value = true;
@@ -188,72 +193,29 @@ class CourseController extends GetxController {
       hasError.value = false;
 
       final systemController = Get.find<SystemController>();
-      if (systemController.isOfflineMode.value) {
-        // We still keep a minimal fallback but focus on real data
-        _logger.d("Offline Mode active - using cache or minimal mock if needed");
-      }
+      
+      // Fetch all approved courses from Supabase
+      final response = await _supabase
+          .from('courses')
+          .select('*')
+          .eq('status', 'approved');
+      
+      final courses = (response as List).map((json) => Course.fromJson(json)).toList();
+      allCourses.assignAll(courses);
 
-      // Implement Retry with Backoff logic
-      int retryCount = 0;
-      const maxRetries = 3;
-      bool success = false;
-
-      while (retryCount < maxRetries && !success) {
-        try {
-          // 1. Fetch Purchased Courses first
-          await fetchMyCourses();
-
-          // 2. Fetch all courses
-          final List<dynamic> data = await _courseService.getAllCourses();
-          
-          final courses = data
-              .map((json) {
-                try {
-                  return Course.fromJson(json);
-                } catch (e) {
-                  _logger.e("Error parsing single course: $e, Data: $json");
-                  return null;
-                }
-              })
-              .whereType<Course>()
-              .toList();
-
-          allCourses.assignAll(courses);
-
-          // Mark purchased courses
-          for (var course in allCourses) {
-            if (myCourses.any((myCourse) => myCourse.id == course.id)) {
-              course.isPurchased = true;
-            }
-          }
-          
-          // Save for offline mode
-          _saveToOfflineCache(courses);
-
-          applyFilters();
-          success = true;
-        } catch (e) {
-          retryCount++;
-          if (retryCount >= maxRetries) rethrow;
-          _logger.w("Retry $retryCount/$maxRetries for fetching courses...");
-          await Future.delayed(Duration(seconds: retryCount * 2)); // Exponential backoff
+      // Mark purchased courses
+      await fetchMyCourses();
+      for (var course in allCourses) {
+        if (myCourses.any((myCourse) => myCourse.id == course.id)) {
+          course.isPurchased = true;
         }
       }
+      
+      applyFilters();
     } catch (e) {
       hasError.value = true;
-      errorMessage.value = "فشل الاتصال بقاعدة البيانات. تأكد من اتصالك بالإنترنت.";
+      errorMessage.value = "فشل الاتصال بقاعدة البيانات.";
       _logger.e("Critical Error fetching courses: $e");
-      
-      // Load from offline cache if network fails
-      _loadFromOfflineCache();
-
-      Get.snackbar(
-        "خطأ في الاتصال",
-        "تعذر جلب البيانات من السيرفر. تم تحميل البيانات المخبأة.",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFE63946),
-        colorText: Colors.white,
-      );
     } finally {
       isLoading.value = false;
     }
@@ -361,6 +323,25 @@ class CourseController extends GetxController {
     filteredCourses.assignAll(tempCourses);
   }
 
+  Future<void> fetchCourseLessons(String courseId) async {
+    try {
+      final response = await _supabase
+          .from('lessons')
+          .select('*')
+          .eq('course_id', courseId)
+          .order('order_index');
+      
+      final lessons = (response as List).map((json) => Lesson.fromJson(json)).toList();
+      final course = allCourses.firstWhereOrNull((c) => c.id == courseId);
+      if (course != null) {
+        course.lessons.assignAll(lessons);
+        allCourses.refresh();
+      }
+    } catch (e) {
+      _logger.e("Error fetching lessons: $e");
+    }
+  }
+
   /// VECTOR 1: Content Protection & DRM
   Future<void> playLesson(Lesson lesson) async {
     try {
@@ -435,6 +416,8 @@ class CourseController extends GetxController {
     if (currentBalance >= course.price) {
       try {
         isLoading.value = true;
+        final userId = _supabase.auth.currentUser?.id;
+        if (userId == null) throw "يجب تسجيل الدخول أولاً";
 
         final systemController = Get.find<SystemController>();
         if (systemController.isOfflineMode.value) {
@@ -448,20 +431,33 @@ class CourseController extends GetxController {
           return;
         }
 
-        // 1. Call Backend to perform purchase
-        final response = await _dio.post('/wallet/purchase/${course.id}');
+        // 1. Transactional purchase logic in Supabase (or RPC)
+        // Deduct balance
+        final newBalance = currentBalance - course.price;
+        await _supabase.from('wallets').update({'balance': newBalance}).eq('user_id', userId);
+        
+        // Add to user_courses
+        await _supabase.from('user_courses').insert({
+          'user_id': userId,
+          'course_id': course.id,
+        });
+
+        // Record transaction
+        final walletId = (await _supabase.from('wallets').select('id').eq('user_id', userId).single())['id'];
+        await _supabase.from('wallet_transactions').insert({
+          'wallet_id': walletId,
+          'amount': -course.price,
+          'type': 'payment',
+          'status': 'completed',
+          'note': 'شراء كورس: ${course.title}',
+        });
 
         // 2. Update local state
         course.isPurchased = true;
         myCourses.add(course);
         AnalyticsService.logCoursePurchase(course.id, course.title, course.price);
-        allCourses.refresh(); // To update the purchased status on home screen
-        filteredCourses
-            .refresh(); // To update the purchased status on home screen
-
-        // 3. Update balance from backend response
-        _walletController.balance.value =
-            response.data['new_balance'].toString();
+        
+        _walletController.balance.value = newBalance.toString();
 
         // Force update UI
         allCourses.refresh();
@@ -469,16 +465,12 @@ class CourseController extends GetxController {
 
         Get.snackbar(
           "تم الشراء بنجاح",
-          response.data['message'] ?? "لقد تم شراء كورس ${course.title} بنجاح",
+          "لقد تم شراء كورس ${course.title} بنجاح",
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Get.theme.colorScheme.primary.withOpacity(0.1),
         );
       } catch (e) {
-        String errorMsg = "فشل في إتمام عملية الشراء";
-        if (e is DioException) {
-          errorMsg = e.response?.data['detail'] ?? errorMsg;
-        }
-        Get.snackbar("خطأ", errorMsg, snackPosition: SnackPosition.BOTTOM);
+        Get.snackbar("خطأ", "فشل في إتمام عملية الشراء: $e", snackPosition: SnackPosition.BOTTOM);
       } finally {
         isLoading.value = false;
       }

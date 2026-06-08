@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/wallet_service.dart';
 import '../models/wallet_transaction_model.dart';
 import 'auth_controller.dart';
@@ -10,6 +11,7 @@ import 'system_controller.dart';
 class WalletController extends GetxController {
   final WalletService _walletService = WalletService();
   final AuthController _authController = Get.find<AuthController>();
+  final SupabaseClient _supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
 
   var balance = "0".obs;
@@ -78,47 +80,39 @@ class WalletController extends GetxController {
     try {
       isLoading.value = true;
 
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
       final systemController = Get.find<SystemController>();
       if (systemController.isOfflineMode.value) {
         await Future.delayed(const Duration(seconds: 1));
         balance.value = "75000";
-        history.assignAll([
-           WalletTransaction(
-             id: "1",
-             transactionId: "TRX-123456",
-             amount: 50000,
-             status: TransactionStatus.approved,
-             createdAt: DateTime.now().subtract(const Duration(days: 2)),
-             note: "شحن عبر الهرم",
-           ),
-           WalletTransaction(
-             id: "2",
-             transactionId: "TRX-987654",
-             amount: 15000,
-             status: TransactionStatus.approved,
-             createdAt: DateTime.now().subtract(const Duration(days: 5)),
-             note: "شراء كورس الرياضيات",
-           ),
-           WalletTransaction(
-             id: "3",
-             transactionId: "TRX-456789",
-             amount: 25000,
-             status: TransactionStatus.pending,
-             createdAt: DateTime.now().subtract(const Duration(hours: 4)),
-             note: "طلب شحن قيد المراجعة",
-           ),
-         ]);
         return;
       }
 
-      // 1. Fetch real balance from Backend
-      final response = await _walletService.fetchBalance();
-      balance.value = response['balance'].toString();
+      // 1. Fetch real balance from Supabase directly if no custom backend API
+      final walletResponse = await _supabase
+          .from('wallets')
+          .select('balance')
+          .eq('user_id', userId)
+          .maybeSingle();
+      
+      if (walletResponse != null) {
+        balance.value = walletResponse['balance'].toString();
+      } else {
+        // Create wallet if it doesn't exist
+        await _supabase.from('wallets').insert({'user_id': userId, 'balance': 0});
+        balance.value = "0";
+      }
 
-      // 2. Fetch history
-      final transactions = await _walletService
-          .getTransactionHistory(_authController.userData['id'] ?? "");
-      history.assignAll(transactions);
+      // 2. Fetch history from Supabase
+      final transResponse = await _supabase
+          .from('wallet_transactions')
+          .select('*, wallets!inner(user_id)')
+          .eq('wallets.user_id', userId)
+          .order('created_at', ascending: false);
+      
+      history.assignAll((transResponse as List).map((e) => WalletTransaction.fromJson(e)).toList());
     } catch (e) {
       if (kDebugMode) debugPrint("Wallet fetch error: $e");
       Get.snackbar("خطأ", "فشل جلب بيانات المحفظة",
@@ -128,16 +122,12 @@ class WalletController extends GetxController {
     }
   }
 
-  Future<void> pickReceiptImage() async {
-    final XFile? image =
-        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+  Future<void> pickReceiptImage() => pickImage();
+
+  Future<void> pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
-      if (kIsWeb) {
-        // Handle web image picking (path is not accessible)
-        Get.snackbar("تنبيه", "رفع الصور عبر الويب غير مدعوم حالياً في هذه النسخة");
-      } else {
-        selectedImagePath.value = image.path;
-      }
+      selectedImagePath.value = image.path;
     }
   }
 
@@ -145,40 +135,40 @@ class WalletController extends GetxController {
     required String transactionId,
     required double amount,
     required String method,
-    required String note,
+    String? note,
   }) async {
+    if (selectedImagePath.value.isEmpty) {
+      Get.snackbar("تنبيه", "يرجى إرفاق صورة الإيصال",
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+
     try {
       isLoading.value = true;
+      
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
 
-      String? receiptUrl;
-      if (selectedImagePath.value.isNotEmpty) {
-        receiptUrl = await _walletService.uploadReceipt(
-            File(selectedImagePath.value),
-            _authController.userData['id'] ?? "unknown");
-      }
+      // 1. In a real app, upload the receipt image to Supabase Storage
+      // For now, we simulate the request record
+      await _supabase.from('wallet_transactions').insert({
+        'wallet_id': (await _supabase.from('wallets').select('id').eq('user_id', userId).single())['id'],
+        'amount': amount,
+        'type': 'deposit',
+        'status': 'pending',
+        'reference_id': transactionId,
+        'note': "شحن عبر $method: $note",
+      });
 
-      final result = await _walletService.submitRechargeRequest(
-        userId: _authController.userData['id'] ?? "",
-        amount: amount,
-        paymentMethod: method,
-        transactionId: transactionId,
-        note: note,
-        receiptUrl: receiptUrl,
-      );
-
-      Get.back(); // Close form
-      Get.snackbar(
-        "تم بنجاح",
-        result['message'] ??
-            "تم استلام طلبك، سيتم التأكد من الحوالة خلال دقائق",
-        duration: const Duration(seconds: 5),
-        snackPosition: SnackPosition.BOTTOM,
-      );
-
-      fetchWalletData(); // Refresh list and balance
-      selectedImagePath.value = ""; // Reset
+      Get.snackbar("نجاح", "تم إرسال طلب الشحن بنجاح وهو قيد المراجعة",
+          snackPosition: SnackPosition.BOTTOM);
+      
+      selectedImagePath.value = ""; // Clear for next time
+      Get.back();
+      fetchWalletData(); // Refresh history
     } catch (e) {
-      Get.snackbar("خطأ", e.toString(), snackPosition: SnackPosition.BOTTOM);
+      Get.snackbar("خطأ", "فشل إرسال طلب الشحن: $e",
+          snackPosition: SnackPosition.BOTTOM);
     } finally {
       isLoading.value = false;
     }

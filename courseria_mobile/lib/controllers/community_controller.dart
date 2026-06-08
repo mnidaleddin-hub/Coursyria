@@ -31,7 +31,7 @@ class CommunityController extends GetxController {
 
       final List<dynamic> response = await _supabase
           .from('posts')
-          .select('*, profiles:user_id(full_name, avatar_url), likes!left(user_id)') // Join with profiles and likes
+          .select('*, profiles:user_profiles!user_id(full_name, avatar_url), likes!left(user_id)') // Explicitly link to user_profiles
           .order('created_at', ascending: false);
 
       posts.assignAll(response.map((json) {
@@ -192,7 +192,7 @@ class CommunityController extends GetxController {
     try {
       final List<dynamic> response = await _supabase
           .from('comments')
-          .select('*, profiles:user_id(full_name, avatar_url)')
+          .select('*, profiles:user_profiles!user_id(full_name, avatar_url)')
           .eq('post_id', postId)
           .order('created_at', ascending: true);
       commentsForPost.assignAll(response.map((json) => Comment.fromJson(json)).toList());

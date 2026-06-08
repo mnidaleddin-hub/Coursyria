@@ -11,11 +11,15 @@ class UserProfile {
   final double? walletBalance;
   final int? currentStreak;
   final int? totalPoints;
+  final String? fullName;
+  final String? username;
   final DateTime createdAt;
 
   UserProfile({
     required this.id,
     this.avatarUrl,
+    this.fullName,
+    this.username,
     this.bio,
     this.gradeLevel,
     this.interests,
@@ -49,6 +53,8 @@ class UserProfile {
     return {
       'id': id,
       'avatar_url': avatarUrl,
+      'full_name': fullName,
+      'username': username,
       'bio': bio,
       'grade_level': gradeLevel,
       'interests': interests,

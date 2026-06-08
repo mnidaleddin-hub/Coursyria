@@ -211,7 +211,7 @@ class HomeScreen extends StatelessWidget {
                           color: Colors.white.withOpacity(0.6),
                           fontSize: 14.sp)),
                   Text(
-                    "طالب كورسيريا المتميز",
+                    "مرحباً محمد نضال الدين! 👋",
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 22.sp,

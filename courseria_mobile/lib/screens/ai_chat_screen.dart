@@ -7,13 +7,13 @@ import '../core/constants/constants.dart';
 import '../widgets/app_loading_indicator.dart';
 
 class AIChatScreen extends StatefulWidget {
-  final String lessonId;
-  final String lessonTitle;
+  final String? lessonId;
+  final String? lessonTitle;
 
   const AIChatScreen({
     super.key,
-    required this.lessonId,
-    required this.lessonTitle,
+    this.lessonId,
+    this.lessonTitle,
   });
 
   @override
@@ -21,7 +21,7 @@ class AIChatScreen extends StatefulWidget {
 }
 
 class _AIChatScreenState extends State<AIChatScreen> {
-  final AIService _aiService = AIService();
+  final AIService _aiService = Get.find<AIService>();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   
@@ -34,7 +34,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
     // Welcome message
     _messages.add({
       'role': 'assistant',
-      'content': 'أهلاً بك يا بطل! أنا مساعدك الذكي لدرس "${widget.lessonTitle}". كيف يمكنني مساعدتك في فهم المحتوى اليوم؟'
+      'content': widget.lessonTitle != null 
+          ? 'أهلاً بك يا بطل! أنا مساعدك الذكي لدرس "${widget.lessonTitle}". كيف يمكنني مساعدتك في فهم المحتوى اليوم؟'
+          : 'مرحباً بك في مركز الدعم الذكي! أنا هنا لمساعدتك في أي استفسار حول المنصة أو المناهج الدراسية. كيف يمكنني خدمتك؟'
     });
   }
 
@@ -61,19 +63,23 @@ class _AIChatScreenState extends State<AIChatScreen> {
     _isTyping.value = true;
 
     try {
-      final response = await _aiService.chatWithAI(
-        lessonId: widget.lessonId,
-        userMessage: text,
-        chatHistory: _messages.take(_messages.length - 1).toList(),
+      final aiService = Get.find<AIService>();
+      final response = await aiService.callAIGateway(
+        feature: 'chat',
+        lessonId: widget.lessonId ?? 'global',
+        userPrompt: text,
+        extraParams: {
+          'chatHistory': _messages.take(_messages.length - 1).toList(),
+        },
       );
 
       if (response.success) {
         _messages.add({'role': 'assistant', 'content': response.content});
       } else {
-        _messages.add({'role': 'assistant', 'content': 'عذراً، واجهت مشكلة في الاتصال. يرجى المحاولة مرة أخرى.'});
+        Get.snackbar("خطأ", "فشل رد الذكاء الاصطناعي: ${response.error}");
       }
     } catch (e) {
-      _messages.add({'role': 'assistant', 'content': 'حدث خطأ غير متوقع. يرجى التحقق من اتصالك بالإنترنت.'});
+      Get.snackbar("خطأ", "حدث خطأ غير متوقع: $e");
     } finally {
       _isTyping.value = false;
       _scrollToBottom();
@@ -89,7 +95,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("المساعد الذكي", style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
-            Text(widget.lessonTitle, style: TextStyle(fontSize: 10.sp, color: Colors.white70), overflow: TextOverflow.ellipsis),
+            if (widget.lessonTitle != null)
+              Text(widget.lessonTitle!, style: TextStyle(fontSize: 10.sp, color: Colors.white70), overflow: TextOverflow.ellipsis),
           ],
         ),
         backgroundColor: AppColors.secondaryNavy,
