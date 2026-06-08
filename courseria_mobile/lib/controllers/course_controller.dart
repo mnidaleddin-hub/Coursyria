@@ -4,14 +4,17 @@ import 'package:get/get.dart' hide Response;
 import 'package:get_storage/get_storage.dart';
 import 'package:logger/logger.dart';
 import '../models/course_model.dart';
+import '../services/analytics_service.dart';
 import '../core/constants/constants.dart';
 import '../screens/video_player_screen.dart';
 import '../services/course_service.dart';
 import 'wallet_controller.dart';
 import 'auth_controller.dart';
+import 'system_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/certificate_service.dart';
+import '../services/ai_service.dart';
 
 class CourseController extends GetxController {
   final WalletController _walletController = Get.find<WalletController>();
@@ -19,13 +22,15 @@ class CourseController extends GetxController {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConstants.baseUrl));
   final Logger _logger = Logger();
   final SupabaseClient _supabase = Supabase.instance.client;
+  final AIService _aiService = AIService();
 
   var allCourses = <Course>[].obs;
   var myCourses = <Course>[].obs;
   var filteredCourses = <Course>[].obs;
   var selectedSubject = "الكل".obs;
   var selectedCategory = "الكل".obs;
-  var searchQuery = ''.obs; // New reactive variable for search query
+  var searchQuery = ''.obs; 
+  var isAiSorting = false.obs;
   TextEditingController searchController =
       TextEditingController(); // New text editing controller
   var isLoading = false.obs;
@@ -55,8 +60,6 @@ class CourseController extends GetxController {
     // 1. Sync Token for protected routes
     _syncAuthToken();
 
-    // ... interceptors logic (I'll keep it)
-
     // Listen to search text changes with debouncing
     debounce(searchQuery, (_) => applyFilters(), time: const Duration(milliseconds: 500));
     
@@ -77,9 +80,52 @@ class CourseController extends GetxController {
   }
 
   var favoriteCourses = <Course>[].obs;
+  var courseReviews = <Map<String, dynamic>>[].obs;
+
+  Future<void> fetchCourseReviews(String courseId) async {
+    try {
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        courseReviews.assignAll([
+          {'user': 'أحمد م.', 'rating': 5, 'comment': 'شرح ممتاز جداً ومبسط'},
+          {'user': 'سارة ح.', 'rating': 4, 'comment': 'محتوى قيم جداً'},
+        ]);
+        return;
+      }
+      final response = await _dio.get('/courses/$courseId/reviews');
+      if (response.statusCode == 200) {
+        courseReviews.assignAll(List<Map<String, dynamic>>.from(response.data));
+      }
+    } catch (e) {
+      _logger.e("Error fetching reviews: $e");
+    }
+  }
+
+  Future<void> submitReview(String courseId, double rating, String comment) async {
+    try {
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        Get.snackbar("شكراً لك!", "تم تسجيل تقييمك محلياً (وضع التجربة)", backgroundColor: AppColors.accentTeal, colorText: Colors.white);
+        return;
+      }
+      final response = await _dio.post('/courses/$courseId/reviews', data: {
+        'rating': rating,
+        'comment': comment,
+      });
+      if (response.statusCode == 200) {
+        Get.snackbar("تم التقييم", "شكراً لمشاركتك رأيك معنا", backgroundColor: AppColors.accentTeal, colorText: Colors.white);
+        fetchCourseReviews(courseId);
+      }
+    } catch (e) {
+      Get.snackbar("خطأ", "فشل إرسال التقييم", backgroundColor: Colors.redAccent, colorText: Colors.white);
+    }
+  }
 
   Future<void> fetchFavorites() async {
     try {
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) return;
       final response = await _dio.get('/courses/favorites');
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -95,6 +141,12 @@ class CourseController extends GetxController {
     try {
       isLoading.value = true;
       
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        return;
+      }
+
       final response = await _dio.get('/courses/my-courses');
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -112,6 +164,12 @@ class CourseController extends GetxController {
 
   Future<void> toggleFavorite(String courseId) async {
     try {
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        Get.snackbar("المفضلة", "تم إضافة الكورس للمفضلة (محلياً)",
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
       final response = await _dio.post('/courses/$courseId/favorite');
       if (response.statusCode == 200) {
         Get.snackbar("المفضلة", response.data['message'],
@@ -129,53 +187,92 @@ class CourseController extends GetxController {
       isLoading.value = true;
       hasError.value = false;
 
-      // 1. Fetch Purchased Courses first to ensure 'isPurchased' flags are correct
-      await fetchMyCourses();
-
-      // 2. Fetch all courses
-      final List<dynamic> data = await _courseService.getAllCourses();
-      
-      if (data.isEmpty) {
-        _logger.w("No courses found in Supabase.");
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        // We still keep a minimal fallback but focus on real data
+        _logger.d("Offline Mode active - using cache or minimal mock if needed");
       }
 
-      final courses = data
-          .map((json) {
-            try {
-              return Course.fromJson(json);
-            } catch (e) {
-              _logger.e("Error parsing single course: $e, Data: $json");
-              return null;
+      // Implement Retry with Backoff logic
+      int retryCount = 0;
+      const maxRetries = 3;
+      bool success = false;
+
+      while (retryCount < maxRetries && !success) {
+        try {
+          // 1. Fetch Purchased Courses first
+          await fetchMyCourses();
+
+          // 2. Fetch all courses
+          final List<dynamic> data = await _courseService.getAllCourses();
+          
+          final courses = data
+              .map((json) {
+                try {
+                  return Course.fromJson(json);
+                } catch (e) {
+                  _logger.e("Error parsing single course: $e, Data: $json");
+                  return null;
+                }
+              })
+              .whereType<Course>()
+              .toList();
+
+          allCourses.assignAll(courses);
+
+          // Mark purchased courses
+          for (var course in allCourses) {
+            if (myCourses.any((myCourse) => myCourse.id == course.id)) {
+              course.isPurchased = true;
             }
-          })
-          .whereType<Course>()
-          .toList();
+          }
+          
+          // Save for offline mode
+          _saveToOfflineCache(courses);
 
-      allCourses.assignAll(courses);
-
-      // Mark purchased courses
-      for (var course in allCourses) {
-        if (myCourses.any((myCourse) => myCourse.id == course.id)) {
-          course.isPurchased = true;
+          applyFilters();
+          success = true;
+        } catch (e) {
+          retryCount++;
+          if (retryCount >= maxRetries) rethrow;
+          _logger.w("Retry $retryCount/$maxRetries for fetching courses...");
+          await Future.delayed(Duration(seconds: retryCount * 2)); // Exponential backoff
         }
       }
-
-      applyFilters(); // Apply filters after fetching courses
     } catch (e) {
       hasError.value = true;
       errorMessage.value = "فشل الاتصال بقاعدة البيانات. تأكد من اتصالك بالإنترنت.";
       _logger.e("Critical Error fetching courses: $e");
       
-      // Prevent app crash by showing a snackbar instead of throwing
+      // Load from offline cache if network fails
+      _loadFromOfflineCache();
+
       Get.snackbar(
         "خطأ في الاتصال",
-        "تعذر جلب البيانات من السيرفر. يرجى المحاولة لاحقاً.",
+        "تعذر جلب البيانات من السيرفر. تم تحميل البيانات المخبأة.",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFE63946),
         colorText: Colors.white,
       );
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  void _saveToOfflineCache(List<Course> courses) {
+    final storage = GetStorage();
+    // Cache last 10 courses
+    final cacheData = courses.take(10).map((e) => e.toJson()).toList();
+    storage.write('offline_courses_cache', cacheData);
+  }
+
+  void _loadFromOfflineCache() {
+    final storage = GetStorage();
+    final List<dynamic>? cachedData = storage.read('offline_courses_cache');
+    if (cachedData != null) {
+      final cachedCourses = cachedData.map((e) => Course.fromJson(e)).toList();
+      allCourses.assignAll(cachedCourses);
+      applyFilters();
     }
   }
 
@@ -188,8 +285,55 @@ class CourseController extends GetxController {
     applyFilters(); // Apply filters when subject changes
   }
 
+  Future<void> sortCoursesByAI() async {
+    try {
+      isAiSorting.value = true;
+      final authController = Get.find<AuthController>();
+      final userInterests = (authController.userData['interests'] as List<dynamic>?)?.cast<String>() ?? ["تعليم", "مهارات"];
+
+      final List<Map<String, dynamic>> coursesData = filteredCourses.map((c) => {
+        'id': c.id,
+        'title': c.title,
+        'subject': c.subject,
+        'category': c.category,
+      }).toList();
+
+      if (coursesData.isEmpty) return;
+
+      final sortedIds = await _aiService.sortCoursesByInterests(
+        userInterests: userInterests,
+        courses: coursesData,
+      );
+
+      // Reorder filteredCourses based on sortedIds
+      final List<Course> sortedList = [];
+      for (var id in sortedIds) {
+        final course = filteredCourses.firstWhereOrNull((c) => c.id == id);
+        if (course != null) sortedList.add(course);
+      }
+
+      // Add remaining if any
+      for (var c in filteredCourses) {
+        if (!sortedList.contains(c)) sortedList.add(c);
+      }
+
+      filteredCourses.assignAll(sortedList);
+      authController.triggerHaptic(AppHapticFeedback.success);
+      Get.snackbar("ذكاء اصطناعي", "تم ترتيب الكورسات حسب اهتماماتك ✨", backgroundColor: AppColors.accentTeal.withOpacity(0.8), colorText: Colors.white);
+    } catch (e) {
+      _logger.e("Error AI sorting: $e");
+    } finally {
+      isAiSorting.value = false;
+    }
+  }
+
+  Future<String> generateInviteLink(String courseId) async {
+    // Mock logic for invite link
+    return "https://coursyria.com/invite/$courseId?ref=${_supabase.auth.currentUser?.id}";
+  }
+
   void applyFilters() {
-    List<Course> tempCourses = allCourses;
+    List<Course> tempCourses = List.from(allCourses);
 
     // Filter by status: Only 'approved' for regular students
     final authController = Get.find<AuthController>();
@@ -221,6 +365,16 @@ class CourseController extends GetxController {
   Future<void> playLesson(Lesson lesson) async {
     try {
       isLoading.value = true;
+
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        Get.to(() => VideoPlayerScreen(
+              lesson: lesson,
+              videoUrl: "https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4",
+            ));
+        return;
+      }
 
       // 1. Get Secure Stream URL from Backend
       final response = await _dio.get('/courses/lessons/${lesson.id}/stream');
@@ -282,12 +436,25 @@ class CourseController extends GetxController {
       try {
         isLoading.value = true;
 
+        final systemController = Get.find<SystemController>();
+        if (systemController.isOfflineMode.value) {
+          await Future.delayed(const Duration(seconds: 1));
+          course.isPurchased = true;
+          myCourses.add(course);
+          _walletController.balance.value = (currentBalance - course.price).toString();
+          allCourses.refresh();
+          filteredCourses.refresh();
+          Get.snackbar("نجاح (تجربة)", "تم شراء الكورس بنجاح في وضع التجربة", snackPosition: SnackPosition.BOTTOM);
+          return;
+        }
+
         // 1. Call Backend to perform purchase
         final response = await _dio.post('/wallet/purchase/${course.id}');
 
         // 2. Update local state
         course.isPurchased = true;
         myCourses.add(course);
+        AnalyticsService.logCoursePurchase(course.id, course.title, course.price);
         allCourses.refresh(); // To update the purchased status on home screen
         filteredCourses
             .refresh(); // To update the purchased status on home screen

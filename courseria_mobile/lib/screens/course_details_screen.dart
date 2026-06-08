@@ -3,16 +3,23 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:skeletonizer/skeletonizer.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:animations/animations.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+
 import '../controllers/auth_controller.dart';
 import '../controllers/course_controller.dart';
-// ...
 import '../controllers/lesson_controller.dart';
 import '../core/constants/constants.dart';
 import '../models/course_model.dart';
-import '../widgets/shimmer_loading.dart';
+import '../widgets/app_loading_indicator.dart';
+import '../widgets/custom_loading.dart';
 import '../controllers/quiz_controller.dart';
-import '../core/utils/offline_video_manager.dart';
-import 'quiz_play_screen.dart';
+import '../models/quiz_model.dart';
+import '../services/ai_service.dart';
+import 'quiz_screen.dart';
+import 'quiz_result_screen.dart';
 import 'video_player_screen.dart';
 
 class CourseDetailsScreen extends StatelessWidget {
@@ -20,148 +27,661 @@ class CourseDetailsScreen extends StatelessWidget {
   final CourseController _courseController = Get.find<CourseController>();
   final LessonController _lessonController = Get.put(LessonController());
   final AuthController _authController = Get.find<AuthController>();
+  final QuizController _quizController = Get.put(QuizController());
+  final AIService _aiService = AIService();
 
   CourseDetailsScreen({super.key, required this.course}) {
     _lessonController.fetchLessons(course.id);
+    _quizController.fetchQuizzesForCourse(course.id);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgCanvasStart,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppColors.bgCanvasStart, AppColors.bgCanvasEnd],
-          ),
-        ),
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // Premium App Bar with Glassmorphism Image Container
-            SliverAppBar(
-              expandedHeight: 250.h,
-              pinned: true,
-              stretch: true,
-              backgroundColor: AppColors.primaryNavy,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.share_rounded, color: Colors.white),
-                  onPressed: () {
-                    Share.share("تحقق من هذا الكورس الرائع على كورسيريا: ${course.title}");
-                  },
-                ),
-                SizedBox(width: 10.w),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                stretchModes: const [StretchMode.zoomBackground],
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.network(
-                      course.coverUrl,
+      backgroundColor: context.theme.scaffoldBackgroundColor,
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          // Premium App Bar with Glassmorphism Image Container
+          SliverAppBar(
+            expandedHeight: 250.h,
+            pinned: true,
+            stretch: true,
+            backgroundColor: context.theme.primaryColor,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.share_rounded, color: Colors.white),
+                onPressed: () {
+                  Share.share("تحقق من هذا الكورس الرائع على كورسيريا: ${course.title}");
+                },
+              ),
+              SizedBox(width: 10.w),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              stretchModes: const [StretchMode.zoomBackground],
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Hero(
+                    tag: 'course_${course.id}',
+                    child: CachedNetworkImage(
+                      imageUrl: course.thumbnailUrl ?? '',
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return ShimmerLoading.rectangular(height: 250.h);
-                      },
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: AppColors.primaryNavy.withOpacity(0.1),
-                        child: const Icon(Icons.book,
-                            color: AppColors.primaryNavy, size: 50),
+                      placeholder: (context, url) => Container(color: Colors.grey[200]),
+                      errorWidget: (context, error, stackTrace) => Container(
+                        color: context.theme.primaryColor.withOpacity(0.1),
+                        child: const Icon(Icons.book, color: Colors.white, size: 50),
                       ),
                     ),
-                    // Gradient Overlay for better text visibility
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            AppColors.primaryNavy.withOpacity(0.8),
-                          ],
-                        ),
+                  ),
+                  // Gradient Overlay for better text visibility
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.8),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
+          ),
 
-            // Course Info & Lessons
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title & Badge
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            course.title,
-                            style: AppTextStyles.header.copyWith(
-                                fontSize: 24.sp, color: AppColors.primaryNavy),
-                          ),
+          // Course Info & Lessons
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title & Badge
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          course.title,
+                          style: AppTextStyles.header.copyWith(
+                              fontSize: 24, color: context.theme.primaryColor),
                         ),
-                        _buildRatingBadge(),
-                      ],
-                    ),
-                    Obx(() {
-                      if (_courseController.allCourses.firstWhere((c) => c.id == course.id).isPurchased) {
-                        return _buildFinalQuizAction();
-                      }
-                      return const SizedBox.shrink();
-                    }),
-                    SizedBox(height: 12.h),
+                      ),
+                      _buildRatingBadge(),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // AI Summary Action
+                  _buildAISummaryAction(),
+                  
+                  // AI Quiz Action
+                  _buildAIQuizAction(),
 
-                    // Instructor & Subject Chip
-                    Row(
-                      children: [
-                        _buildInfoChip(
-                            Icons.person_pin_rounded, course.instructor),
-                        SizedBox(width: 12.w),
-                        _buildInfoChip(Icons.category_rounded, course.subject),
-                      ],
-                    ),
-                    SizedBox(height: 32.h),
+                  // AI Flashcards & FAQ Actions
+                  Row(
+                    children: [
+                      Expanded(child: _buildSmallAIAction(
+                        title: "بطاقات مراجعة", 
+                        icon: Icons.style_rounded, 
+                        color: Colors.purple,
+                        onTap: () => _generateFlashcards(),
+                      )),
+                      SizedBox(width: 12.w),
+                      Expanded(child: _buildSmallAIAction(
+                        title: "أسئلة شائعة", 
+                        icon: Icons.question_answer_rounded, 
+                        color: Colors.orange,
+                        onTap: () => _generateFAQs(),
+                      )),
+                    ],
+                  ),
+                  SizedBox(height: 12.h),
+                  
+                  Obx(() {
+                    final c = _courseController.allCourses.firstWhereOrNull((c) => c.id == course.id);
+                    if (c != null && c.isPurchased) {
+                      return _buildFinalQuizAction();
+                    }
+                    return const SizedBox.shrink();
+                  }),
+                  const SizedBox(height: 12),
 
-                    // Luxury Description Card
-                    _buildSectionHeader("نظرة عامة", null),
-                    SizedBox(height: 12.h),
-                    Text(
-                      course.description.isNotEmpty
-                          ? course.description
-                          : "هذا الكورس يمثل رحلة تعليمية متكاملة في مادة ${course.subject}. تم تصميمه بمعايير عالمية ليناسب احتياجات طلابنا، مع التركيز على المفاهيم الأساسية والتقنيات الامتحانية المتقدمة.",
-                      style: AppTextStyles.body.copyWith(
-                          fontSize: 15.sp,
-                          color: AppColors.textMain.withOpacity(0.8),
-                          height: 1.8),
-                    ),
-                    SizedBox(height: 40.h),
+                  // Instructor & Subject Chip
+                  Row(
+                    children: [
+                      _buildInfoChip(
+                          Icons.person_pin_rounded, course.instructorName),
+                      const SizedBox(width: 12),
+                      _buildInfoChip(Icons.category_rounded, course.category ?? "تعليم"),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
 
-                    // Lessons Timeline Header
-                    _buildSectionHeader(
-                        "محتوى الدورة", "${course.lessons.length} حصة تدريبية"),
-                    SizedBox(height: 20.h),
+                  // Luxury Description Card
+                  _buildSectionHeader("نظرة عامة", null),
+                  const SizedBox(height: 12),
+                  Text(
+                    course.description.isNotEmpty
+                        ? course.description
+                        : "هذا الكورس يمثل رحلة تعليمية متكاملة. تم تصميمه بمعايير عالمية ليناسب احتياجات طلابنا، مع التركيز على المفاهيم الأساسية والتقنيات الامتحانية المتقدمة.",
+                    style: AppTextStyles.body.copyWith(
+                        fontSize: 15,
+                        color: Get.isDarkMode ? Colors.white70 : AppColors.textMain.withOpacity(0.8),
+                        height: 1.8),
+                  ),
+                  const SizedBox(height: 40),
 
-                    // Lesson List with Animated Transitions
-                    _buildLessonList(),
+                  // Lessons Timeline Header
+                  _buildSectionHeader(
+                      "محتوى الدورة", "${course.lessonsCount} حصة تدريبية"),
+                  const SizedBox(height: 20),
 
-                    SizedBox(height: 120.h), // Space for bottom action bar
-                  ],
+                  // Lesson List with Skeletonizer
+                  Obx(() => Skeletonizer(
+                    enabled: _lessonController.isLoading.value,
+                    child: _buildLessonList(),
+                  )),
+
+                  const SizedBox(height: 40),
+                  
+                  // Quizzes Section
+                  _buildQuizzesSection(),
+
+                  const SizedBox(height: 40),
+                  _buildReviewsSection(),
+
+                  const SizedBox(height: 120), // Space for bottom action bar
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomSheet: _buildBottomAction(context),
+    );
+  }
+
+  Widget _buildAISummaryAction() {
+    return GestureDetector(
+      onTap: () {
+        if (_lessonController.lessons.isEmpty) {
+          Get.snackbar("تنبيه", "لا توجد دروس لتلخيصها حالياً");
+          return;
+        }
+        _showAISummaryDialog();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Get.theme.primaryColor.withOpacity(0.15), Colors.white.withOpacity(0.05)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Get.theme.primaryColor.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Get.theme.primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.auto_awesome_rounded, color: Get.theme.primaryColor, size: 20),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("الملخص الذكي للكورس (AI)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp, color: Get.theme.primaryColor)),
+                  Text("احصل على أهم النقاط والملخصات بضغطة واحدة", style: TextStyle(fontSize: 11.sp, color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Get.theme.primaryColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAIQuizAction() {
+    return GestureDetector(
+      onTap: () {
+        if (_lessonController.lessons.isEmpty) {
+          Get.snackbar("تنبيه", "لا توجد دروس لتوليد اختبار منها حالياً");
+          return;
+        }
+        _showAIQuizDialog();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.accentTeal.withOpacity(0.15), Colors.white.withOpacity(0.05)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.accentTeal.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.accentTeal.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.psychology_rounded, color: AppColors.accentTeal, size: 20),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("توليد اختبار ذكي (AI Quiz)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp, color: AppColors.accentTeal)),
+                  Text("اختبر معلوماتك بأسئلة مولدة خصيصاً لك", style: TextStyle(fontSize: 11.sp, color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.accentTeal),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmallAIAction({required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 18),
+            SizedBox(width: 8.w),
+            Text(title, style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.bold, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _generateFlashcards() {
+    Get.dialog(const Center(child: AppLoadingIndicator()), barrierDismissible: false);
+    _aiService.generateFlashcards(course.id, "${course.title}\n${course.description}").then((cards) {
+      Get.back();
+      _showFlashcardsDialog(cards);
+    }).catchError((e) {
+      Get.back();
+      Get.snackbar("خطأ", "فشل توليد البطاقات: $e");
+    });
+  }
+
+  void _showFlashcardsDialog(List<Map<String, String>> cards) {
+    final PageController cardController = PageController();
+    final RxInt currentIndex = 0.obs;
+    final RxBool isFlipped = false.obs;
+
+    Get.bottomSheet(
+      Container(
+        height: Get.height * 0.6,
+        padding: EdgeInsets.all(24.r),
+        decoration: BoxDecoration(color: Get.theme.cardColor, borderRadius: BorderRadius.vertical(top: Radius.circular(30.r))),
+        child: Column(
+          children: [
+            Text("بطاقات المراجعة الذكية", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+            SizedBox(height: 20.h),
+            Expanded(
+              child: PageView.builder(
+                controller: cardController,
+                itemCount: cards.length,
+                onPageChanged: (i) {
+                  currentIndex.value = i;
+                  isFlipped.value = false;
+                },
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () => isFlipped.toggle(),
+                    child: Obx(() => Container(
+                      alignment: Alignment.center,
+                      padding: EdgeInsets.all(20.r),
+                      decoration: BoxDecoration(
+                        color: isFlipped.value ? AppColors.accentTeal.withOpacity(0.1) : Get.theme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20.r),
+                        border: Border.all(color: isFlipped.value ? AppColors.accentTeal : Get.theme.primaryColor),
+                      ),
+                      child: Text(
+                        isFlipped.value ? cards[index]['back']! : cards[index]['front']!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w500),
+                      ),
+                    )),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 20.h),
+            Obx(() => Text("${currentIndex.value + 1} / ${cards.length}", style: const TextStyle(color: AppColors.textMuted))),
+            SizedBox(height: 20.h),
+            Text("اضغط على البطاقة لقلبها", style: TextStyle(fontSize: 12.sp, color: AppColors.textMuted)),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  void _generateFAQs() {
+    Get.dialog(const Center(child: AppLoadingIndicator()), barrierDismissible: false);
+    _aiService.generateFAQs(course.title, course.description).then((faq) {
+      Get.back();
+      _showTextResultDialog("الأسئلة الشائعة المتوقعة", faq);
+    }).catchError((e) {
+      Get.back();
+      Get.snackbar("خطأ", "فشل توليد الأسئلة: $e");
+    });
+  }
+
+  void _showTextResultDialog(String title, String content) {
+    Get.bottomSheet(
+      Container(
+        height: Get.height * 0.7,
+        padding: EdgeInsets.all(24.r),
+        decoration: BoxDecoration(color: Get.theme.cardColor, borderRadius: BorderRadius.vertical(top: Radius.circular(30.r))),
+        child: Column(
+          children: [
+            Text(title, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+            SizedBox(height: 20.h),
+            Expanded(
+              child: SingleChildScrollView(
+                child: MarkdownBody(
+                  data: content,
+                  styleSheet: MarkdownStyleSheet(p: TextStyle(fontSize: 14.sp, height: 1.5)),
                 ),
               ),
             ),
           ],
         ),
       ),
-      bottomSheet: _buildBottomAction(),
+      isScrollControlled: true,
+    );
+  }
+
+  void _showAISummaryDialog() {
+    final summaryText = "".obs;
+    final isLoading = true.obs;
+    final firstLesson = _lessonController.lessons.first;
+
+    _aiService.summarizeLessonViaGateway(
+      lessonId: firstLesson.id,
+      title: course.title,
+      description: course.description,
+    ).then((res) {
+      summaryText.value = res;
+      isLoading.value = false;
+    });
+
+    Get.bottomSheet(
+      Container(
+        constraints: BoxConstraints(maxHeight: Get.height * 0.8),
+        padding: EdgeInsets.all(24.r),
+        decoration: BoxDecoration(
+          color: Get.theme.cardColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32.r)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40.w, height: 4.h, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+            SizedBox(height: 24.h),
+            Row(
+              children: [
+                Icon(Icons.auto_awesome_rounded, color: Get.theme.primaryColor),
+                SizedBox(width: 12.w),
+                Text("الملخص الذكي", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900, color: Get.theme.primaryColor)),
+              ],
+            ),
+            SizedBox(height: 20.h),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Obx(() => isLoading.value 
+                  ? Column(
+                      children: [
+                        SizedBox(height: 40.h),
+                        const AppLoadingIndicator(),
+                        SizedBox(height: 16.h),
+                        Text("جاري تحليل محتوى الكورس وتوليد الملخص...", style: TextStyle(color: AppColors.textMuted, fontSize: 13.sp)),
+                      ],
+                    )
+                  : Container(
+                      padding: EdgeInsets.all(16.r),
+                      decoration: BoxDecoration(color: Get.isDarkMode ? Colors.white10 : AppColors.bgCanvasStart, borderRadius: BorderRadius.circular(16.r)),
+                      child: MarkdownBody(
+                        data: summaryText.value,
+                        styleSheet: MarkdownStyleSheet(
+                          p: TextStyle(color: Get.isDarkMode ? Colors.white70 : AppColors.textMain, height: 1.6, fontSize: 14.sp),
+                        ),
+                      ),
+                    )),
+              ),
+            ),
+            SizedBox(height: 24.h),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Get.back(),
+                style: ElevatedButton.styleFrom(backgroundColor: Get.theme.primaryColor, padding: EdgeInsets.symmetric(vertical: 14.h)),
+                child: const Text("حسناً، فهمت", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+      enterBottomSheetDuration: const Duration(milliseconds: 400),
+    );
+  }
+
+  void _showAIQuizDialog() {
+    final isLoading = true.obs;
+    final firstLesson = _lessonController.lessons.first;
+
+    _aiService.generateQuizViaGateway(
+      lessonId: firstLesson.id,
+      topic: course.title,
+      context: course.description,
+    ).then((questions) {
+      _quizController.loadAIQuestions(questions);
+      final aiQuiz = Quiz(
+        id: "ai_temp_${DateTime.now().millisecondsSinceEpoch}",
+        courseId: course.id,
+        title: "اختبار ذكي: ${course.title}",
+        description: "اختبار مولد بواسطة الذكاء الاصطناعي لمراجعة مفاهيم الكورس",
+        questionsCount: questions.length,
+        passingScore: 60,
+        timeLimit: 10,
+        isPublished: true,
+        createdAt: DateTime.now(),
+      );
+      Get.back(); // Close loading sheet
+      Get.to(() => QuizScreen(quiz: aiQuiz));
+    }).catchError((e) {
+      Get.back();
+      Get.snackbar("خطأ", "فشل توليد الاختبار: $e", backgroundColor: AppColors.errorRed, colorText: Colors.white);
+    });
+
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.all(24.r),
+        decoration: BoxDecoration(
+          color: Get.theme.cardColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32.r)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40.w, height: 4.h, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+            SizedBox(height: 24.h),
+            const Icon(Icons.psychology_rounded, color: AppColors.accentTeal, size: 50),
+            SizedBox(height: 16.h),
+            Text("جاري بناء اختبارك الخاص...", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: AppColors.accentTeal)),
+            SizedBox(height: 12.h),
+            Text("نقوم بتحليل محتوى الكورس لتوليد أسئلة دقيقة ومناسبة لمستواك", textAlign: TextAlign.center, style: TextStyle(color: AppColors.textMuted, fontSize: 13.sp)),
+            SizedBox(height: 30.h),
+            const AppLoadingIndicator(),
+            SizedBox(height: 40.h),
+          ],
+        ),
+      ),
+      isDismissible: false,
+      enableDrag: false,
+    );
+  }
+
+  Widget _buildReviewsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("آراء الطلاب ⭐", style: AppTextStyles.header.copyWith(fontSize: 18.sp)),
+            TextButton(
+              onPressed: () => _showAddReviewSheet(),
+              child: Text("أضف تقييمك", style: TextStyle(color: Get.theme.primaryColor)),
+            ),
+          ],
+        ),
+        SizedBox(height: 16.h),
+        Obx(() {
+          if (_courseController.courseReviews.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 20.h),
+                child: Text("لا توجد مراجعات حالياً. كن أول من يقيم!", style: TextStyle(color: AppColors.textMuted, fontSize: 13.sp)),
+              ),
+            );
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _courseController.courseReviews.length,
+            itemBuilder: (context, index) {
+              final review = _courseController.courseReviews[index];
+              return Container(
+                margin: EdgeInsets.only(bottom: 12.h),
+                padding: EdgeInsets.all(16.r),
+                decoration: BoxDecoration(
+                  color: Get.theme.cardColor,
+                  borderRadius: BorderRadius.circular(16.r),
+                  border: Border.all(color: Colors.black.withOpacity(0.03)),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(review['user'] ?? "طالب كورسيريا", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.sp, color: Get.theme.primaryColor)),
+                        Row(
+                          children: List.generate(5, (i) => Icon(
+                            Icons.star_rounded,
+                            size: 14,
+                            color: i < (review['rating'] ?? 0) ? Colors.amber : Colors.grey[300],
+                          )),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(review['comment'] ?? "", style: TextStyle(color: Get.isDarkMode ? Colors.white70 : AppColors.textMain.withOpacity(0.7), fontSize: 12.sp, height: 1.4)),
+                  ],
+                ),
+              );
+            },
+          );
+        }),
+      ],
+    );
+  }
+
+  void _showAddReviewSheet() {
+    final commentController = TextEditingController();
+    var selectedRating = 5.obs;
+
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.all(24.r),
+        decoration: BoxDecoration(color: Get.theme.cardColor, borderRadius: BorderRadius.vertical(top: Radius.circular(30.r))),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40.w, height: 4.h, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+            SizedBox(height: 24.h),
+            Text("كيف تقيم تجربتك؟", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Get.theme.primaryColor)),
+            SizedBox(height: 20.h),
+            Obx(() => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) => IconButton(
+                icon: Icon(
+                  index < selectedRating.value ? Icons.star_rounded : Icons.star_outline_rounded,
+                  size: 40,
+                  color: Colors.amber,
+                ),
+                onPressed: () => selectedRating.value = index + 1,
+              )),
+            )),
+            SizedBox(height: 20.h),
+            TextField(
+              controller: commentController,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: "اكتب رأيك هنا...",
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: Colors.white10,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16.r), borderSide: BorderSide.none),
+              ),
+            ),
+            SizedBox(height: 24.h),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  _courseController.submitReview(course.id, selectedRating.value.toDouble(), commentController.text);
+                  Get.back();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Get.theme.primaryColor,
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+                ),
+                child: const Text("إرسال التقييم", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            SizedBox(height: 20.h),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
     );
   }
 
@@ -169,7 +689,7 @@ class CourseDetailsScreen extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
+        color: Get.theme.cardColor,
         borderRadius: BorderRadius.circular(12.r),
         boxShadow: [
           BoxShadow(
@@ -188,7 +708,7 @@ class CourseDetailsScreen extends StatelessWidget {
             course.rating.toString(),
             style: TextStyle(
                 fontWeight: FontWeight.w900,
-                color: AppColors.primaryNavy,
+                color: Get.theme.primaryColor,
                 fontSize: 14.sp),
           ),
         ],
@@ -200,17 +720,17 @@ class CourseDetailsScreen extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
       decoration: BoxDecoration(
-        color: AppColors.primaryNavy.withOpacity(0.05),
+        color: Get.theme.primaryColor.withOpacity(0.05),
         borderRadius: BorderRadius.circular(8.r),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16.r, color: AppColors.primaryNavy.withOpacity(0.6)),
+          Icon(icon, size: 16.r, color: Get.theme.primaryColor.withOpacity(0.6)),
           SizedBox(width: 6.w),
           Text(label,
               style: TextStyle(
                   fontSize: 12.sp,
-                  color: AppColors.primaryNavy.withOpacity(0.7),
+                  color: Get.theme.primaryColor.withOpacity(0.7),
                   fontWeight: FontWeight.w600)),
         ],
       ),
@@ -221,484 +741,171 @@ class CourseDetailsScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: AppTextStyles.header.copyWith(fontSize: 18.sp)),
+        Expanded(
+          child: Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.header.copyWith(fontSize: 18.sp),
+          ),
+        ),
         if (subtitle != null)
-          Text(subtitle,
-              style: AppTextStyles.muted
-                  .copyWith(fontSize: 13.sp, fontWeight: FontWeight.w600)),
+          Text(
+            subtitle,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.muted.copyWith(fontSize: 13.sp, fontWeight: FontWeight.w600),
+          ),
       ],
     );
   }
 
   Widget _buildLessonList() {
-    return Obx(() {
-      if (_lessonController.isLoading.value) {
-        return Column(
-          children: List.generate(
-              3, (index) => ShimmerLoading.rectangular(height: 80.h)),
-        );
-      }
+    if (_lessonController.lessons.isEmpty && !_lessonController.isLoading.value) {
+      return const Center(child: Text("لا توجد دروس متاحة حالياً"));
+    }
 
-      if (_lessonController.hasError.value) {
-        return Center(
-          child: Column(
-            children: [
-              Text(_lessonController.errorMessage.value),
-              TextButton(
-                onPressed: () => _lessonController.fetchLessons(course.id),
-                child: const Text("إعادة المحاولة"),
-              ),
-            ],
-          ),
-        );
-      }
-
-      if (_lessonController.lessons.isEmpty) {
-        return const Center(child: Text("لا توجد دروس متاحة حالياً"));
-      }
-
-      return ListView.builder(
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: _lessonController.lessons.length,
-        itemBuilder: (context, index) {
-          final lesson = _lessonController.lessons[index];
-          return TweenAnimationBuilder(
-            duration: Duration(milliseconds: 400 + (index * 100)),
-            tween: Tween<double>(begin: 0, end: 1),
-            builder: (context, double value, child) {
-              return Opacity(
-                opacity: value,
-                child: Transform.translate(
-                  offset: Offset(0, 20 * (1 - value)),
-                  child: child,
-                ),
-              );
-            },
-            child: _buildLessonItem(
-                lesson, index, _lessonController.isSubscribed.value),
-          );
-        },
-      );
-    });
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _lessonController.isLoading.value ? 5 : _lessonController.lessons.length,
+      itemBuilder: (context, index) {
+        if (_lessonController.isLoading.value) {
+          return _buildFakeLessonTile();
+        }
+        final lesson = _lessonController.lessons[index];
+        return _buildLessonTile(lesson);
+      },
+    );
   }
 
-  Widget _buildLessonItem(Lesson lesson, int index, bool isPurchased) {
-    bool isDeveloperMode = _authController.token.value == "developer_token";
-    bool isFirstLesson = index == 0;
-    bool isPreviewAvailable = isFirstLesson && !isPurchased;
-
-    bool isLocked = !isDeveloperMode &&
-        !lesson.isFree &&
-        !isPurchased &&
-        !isPreviewAvailable;
-    final storage = GetStorage();
-    final Map<String, dynamic> progressMap =
-        storage.read('playback_progress') ?? {};
-    final int progressSeconds = progressMap[lesson.id] ?? 0;
-
+  Widget _buildFakeLessonTile() {
     return Container(
-      margin: EdgeInsets.only(bottom: 16.h),
+      margin: EdgeInsets.only(bottom: 12.h),
+      height: 80.h,
+      decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(16.r)),
+    );
+  }
+
+  Widget _buildLessonTile(dynamic lesson) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12.h),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(20.r),
-        boxShadow: [
-          BoxShadow(
-              color: AppColors.primaryNavy.withOpacity(0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 8))
-        ],
-        border: Border.all(
-          color: isLocked
-              ? Colors.transparent
-              : AppColors.accentTeal.withOpacity(0.15),
-          width: 1.5,
-        ),
+        color: Get.theme.cardColor,
+        borderRadius: BorderRadius.circular(16.r),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20.r),
-        child: ExpansionTile(
-          tilePadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-          leading: _buildLessonLeading(isLocked, index + 1),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  lesson.title,
-                  style: AppTextStyles.header.copyWith(
-                    fontSize: 15.sp,
-                    color: isLocked ? AppColors.statusLocked : AppColors.primaryNavy,
-                  ),
-                ),
-              ),
-              if (!isLocked && lesson.videoUrl != null && lesson.videoUrl!.isNotEmpty)
-                _buildDownloadIcon(lesson),
-            ],
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                lesson.duration ?? "مدة غير محددة",
-                style: AppTextStyles.muted.copyWith(fontSize: 12.sp),
-              ),
-              if (progressSeconds > 0 && !isLocked)
-                Padding(
-                  padding: EdgeInsets.only(top: 8.h),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(2.r),
-                    child: LinearProgressIndicator(
-                      value: 0.3, // Mock value, in real app calculate ratio
-                      backgroundColor: AppColors.accentTeal.withOpacity(0.1),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.accentTeal),
-                      minHeight: 3.h,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          trailing: isLocked
-              ? Icon(Icons.lock_person_rounded,
-                  size: 22.r, color: AppColors.statusLocked)
-              : Container(
-                  padding: EdgeInsets.all(4.r),
-                  decoration: BoxDecoration(
-                      color: AppColors.accentTeal.withOpacity(0.1),
-                      shape: BoxShape.circle),
-                  child: const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.accentTeal),
-                ),
-          children: [
-            if (!isLocked) ...[
-              _buildAssetSection("أوراق العمل والمصادر", lesson.worksheets),
-              _buildAssetSection("الاختبارات والتقييم",
-                  [...lesson.solvedTests, ...lesson.unsolvedTests]),
-              _buildAssetSection("المراجعات الامتحانية", lesson.examReviews),
-              if (lesson.quizQuestions.isNotEmpty) _buildQuizAction(lesson),
-              _buildLessonAction(lesson),
-            ] else
-              _buildLockedOverlay(),
-          ],
+      child: ListTile(
+        onTap: () => Get.to(() => VideoPlayerScreen(lesson: lesson, videoUrl: lesson.videoUrl ?? "")),
+        leading: Container(
+          width: 40.r,
+          height: 40.r,
+          decoration: BoxDecoration(color: Get.theme.primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(Icons.play_arrow_rounded, color: Get.theme.primaryColor),
         ),
+        title: Text(lesson.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp)),
+        subtitle: Text("${lesson.duration} دقيقة", style: TextStyle(fontSize: 12.sp, color: AppColors.textMuted)),
+        trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[400]),
       ),
     );
   }
 
-  Widget _buildDownloadIcon(Lesson lesson) {
-    return Obx(() {
-      final status = _lessonController.downloadStatuses[lesson.id] ?? DownloadStatus.pending;
-      final progress = _lessonController.downloadProgresses[lesson.id] ?? 0.0;
-
-      if (status == DownloadStatus.downloading) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: 24.r,
-              height: 24.r,
-              child: CircularProgressIndicator(
-                value: progress,
-                strokeWidth: 2,
-                color: AppColors.accentTeal,
+  Widget _buildBottomAction(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(20.r),
+      decoration: BoxDecoration(
+        color: Get.theme.cardColor,
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, -5))],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {},
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Get.theme.primaryColor,
+                padding: EdgeInsets.symmetric(vertical: 16.h),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
               ),
+              child: const Text("اشترك الآن", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
-            Text("${(progress * 100).toInt()}%", style: TextStyle(fontSize: 8.sp, color: AppColors.accentTeal, fontWeight: FontWeight.bold)),
-          ],
-        );
-      }
-
-      if (status == DownloadStatus.completed) {
-        return Icon(Icons.offline_pin_rounded, color: AppColors.accentTeal, size: 22.r);
-      }
-
-      return IconButton(
-        icon: const Icon(Icons.cloud_download_outlined, color: Colors.grey, size: 22),
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        onPressed: () => _lessonController.downloadLesson(lesson, lesson.videoUrl!),
-      );
-    });
-  }
-
-  Widget _buildLessonLeading(bool isLocked, int order) {
-    return Container(
-      width: 40.r,
-      height: 40.r,
-      decoration: BoxDecoration(
-        color: isLocked
-            ? AppColors.statusLocked.withOpacity(0.1)
-            : AppColors.accentTeal.withOpacity(0.1),
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: isLocked
-            ? Icon(Icons.lock_outline_rounded,
-                size: 18.r, color: AppColors.statusLocked)
-            : Text(
-                order.toString().padLeft(2, '0'),
-                style: TextStyle(
-                    color: AppColors.accentTeal,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14.sp),
-              ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLessonAction(Lesson lesson) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),
-      child: ElevatedButton.icon(
-        onPressed: () {
-          if (lesson.videoUrl == null || lesson.videoUrl!.isEmpty) {
-            Get.snackbar(
-              "تنبيه",
-              "المحتوى قيد الرفع",
-              snackPosition: SnackPosition.BOTTOM,
-              backgroundColor: AppColors.primaryNavy.withOpacity(0.8),
-              colorText: Colors.white,
-            );
+  Widget _buildQuizzesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader("الاختبارات التقويمية", null),
+        SizedBox(height: 16.h),
+        Obx(() {
+          if (_quizController.isLoading.value) {
+            return const CustomLoadingIndicator();
+          }
+          if (_quizController.quizzes.isEmpty) {
+            return Text("لا توجد اختبارات متاحة حالياً لهذا الكورس.", style: TextStyle(color: AppColors.textMuted, fontSize: 13.sp));
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _quizController.quizzes.length,
+            itemBuilder: (context, index) {
+              final quiz = _quizController.quizzes[index];
+              final result = _quizController.quizResults[quiz.id];
+              return _buildQuizTile(quiz, result);
+            },
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildQuizTile(Quiz quiz, dynamic result) {
+    final bool isCompleted = result != null;
+    return Container(
+      margin: EdgeInsets.only(bottom: 12.h),
+      decoration: BoxDecoration(
+        color: Get.theme.cardColor,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: isCompleted ? (result.isPassed ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3)) : Colors.transparent),
+      ),
+      child: ListTile(
+        onTap: () {
+          if (isCompleted) {
+            Get.to(() => QuizResultScreen(result: result));
           } else {
-            Get.to(() => VideoPlayerScreen(
-                  lesson: lesson,
-                  videoUrl: lesson.videoUrl!,
-                ));
+            Get.to(() => QuizScreen(quiz: quiz));
           }
         },
-        icon: const Icon(Icons.play_circle_filled_rounded, color: Colors.white),
-        label: Text("مشاهدة الدرس الآن",
-            style: TextStyle(
-                fontSize: 14.sp, color: Colors.white, letterSpacing: 0.5)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryNavy,
-          minimumSize: Size(double.infinity, 48.h),
-          elevation: 0,
+        leading: Container(
+          width: 40.r,
+          height: 40.r,
+          decoration: BoxDecoration(
+            color: isCompleted 
+                ? (result.isPassed ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1))
+                : Get.theme.primaryColor.withOpacity(0.1), 
+            shape: BoxShape.circle
+          ),
+          child: Icon(
+            isCompleted ? (result.isPassed ? Icons.check_circle_rounded : Icons.cancel_rounded) : Icons.quiz_rounded, 
+            color: isCompleted ? (result.isPassed ? Colors.green : Colors.red) : Get.theme.primaryColor
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildQuizAction(Lesson lesson) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
-      child: OutlinedButton.icon(
-        onPressed: () {
-          final quizController = Get.put(QuizController());
-          quizController.startQuiz(
-            type: 'lesson',
-            topicName: lesson.title,
-            cId: course.id,
-            lId: lesson.id,
-          );
-          Get.to(() => QuizPlayScreen());
-        },
-        icon: const Icon(Icons.quiz_rounded, color: AppColors.accentTeal),
-        label: Text("ابدأ الاختبار الذكي (AI)",
-            style: TextStyle(
-                fontSize: 14.sp,
-                color: AppColors.accentTeal,
-                fontWeight: FontWeight.bold)),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.accentTeal, width: 2),
-          minimumSize: Size(double.infinity, 48.h),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        title: Text(quiz.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp)),
+        subtitle: Text(
+          isCompleted ? "النتيجة: ${result.percentage.toInt()}%" : "${quiz.questionsCount} سؤال • ${quiz.timeLimit ?? 'بدون وقت'}", 
+          style: TextStyle(fontSize: 12.sp, color: AppColors.textMuted)
+        ),
+        trailing: Text(
+          isCompleted ? "عرض النتيجة" : "ابدأ الآن", 
+          style: TextStyle(color: Get.theme.primaryColor, fontWeight: FontWeight.bold, fontSize: 12.sp)
         ),
       ),
     );
   }
 
   Widget _buildFinalQuizAction() {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 16.h),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.accentTeal, AppColors.primaryNavy],
-          ),
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        child: ElevatedButton.icon(
-          onPressed: () {
-            final quizController = Get.put(QuizController());
-            quizController.startQuiz(
-              type: 'final',
-              topicName: course.title,
-              cId: course.id,
-            );
-            Get.to(() => QuizPlayScreen());
-          },
-          icon: const Icon(Icons.emoji_events_rounded, color: Colors.white),
-          label: Text("اختبار التخرج النهائي (AI Quiz)",
-              style: TextStyle(
-                  fontSize: 14.sp,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            minimumSize: Size(double.infinity, 54.h),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.r)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLockedOverlay() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(20.w),
-      color: AppColors.bgCanvasStart.withOpacity(0.5),
-      child: Column(
-        children: [
-          Icon(Icons.lock_clock_rounded,
-              color: AppColors.statusLocked, size: 32.r),
-          SizedBox(height: 12.h),
-          Text(
-            "هذا المحتوى مخصص للمشتركين فقط",
-            style: AppTextStyles.muted
-                .copyWith(fontSize: 13.sp, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            "قم بشراء الكورس لفتح كافة الدروس والمرفقات",
-            style: AppTextStyles.muted.copyWith(fontSize: 12.sp),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAssetSection(String title, List<LessonAsset> assets) {
-    if (assets.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-          child: Row(
-            children: [
-              Container(
-                  width: 4.w,
-                  height: 14.h,
-                  decoration: BoxDecoration(
-                      color: AppColors.accentTeal,
-                      borderRadius: BorderRadius.circular(2))),
-              SizedBox(width: 8.w),
-              Text(title,
-                  style: TextStyle(
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primaryNavy)),
-            ],
-          ),
-        ),
-        ...assets.map((asset) => Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-              child: ListTile(
-                dense: true,
-                visualDensity: VisualDensity.compact,
-                leading: Icon(Icons.insert_drive_file_rounded,
-                    color: AppColors.accentTeal.withOpacity(0.7), size: 20),
-                title: Text(asset.title,
-                    style: TextStyle(
-                        fontSize: 13.sp,
-                        color: AppColors.textMain,
-                        fontWeight: FontWeight.w500)),
-                trailing: const Icon(Icons.arrow_circle_down_rounded,
-                    color: AppColors.accentTeal, size: 22),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r)),
-                tileColor: AppColors.bgCanvasStart,
-                onTap: () => _courseController.downloadAsset(asset),
-              ),
-            )),
-        SizedBox(height: 8.h),
-      ],
-    );
-  }
-
-  Widget _buildBottomAction() {
-    return Obx(() {
-      final currentCourse =
-          _courseController.allCourses.firstWhere((c) => c.id == course.id);
-
-      return Container(
-        padding: EdgeInsets.fromLTRB(
-            24.w, 20.h, 24.w, 24.h + Get.context!.mediaQueryPadding.bottom),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceWhite,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
-          boxShadow: [
-            BoxShadow(
-                color: AppColors.primaryNavy.withOpacity(0.08),
-                blurRadius: 30,
-                offset: const Offset(0, -10))
-          ],
-        ),
-        child: Row(
-          children: [
-            if (!currentCourse.isPurchased)
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("قيمة الاستثمار",
-                        style: AppTextStyles.muted.copyWith(
-                            fontSize: 12.sp, fontWeight: FontWeight.w600)),
-                    Text(
-                      "${currentCourse.price.toStringAsFixed(0)} ليرة سورية جديدة",
-                      style: TextStyle(
-                          color: AppColors.primaryNavy,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18.sp),
-                    ),
-                  ],
-                ),
-              ),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (currentCourse.isPurchased) {
-                    if (_lessonController.lessons.isNotEmpty) {
-                      Get.to(() => VideoPlayerScreen(
-                            lesson: _lessonController.lessons.first,
-                            videoUrl: _lessonController.lessons.first.videoUrl ?? '',
-                          ));
-                    } else {
-                      Get.snackbar("تنبيه", "لا توجد دروس متاحة حالياً لهذا الكورس.", snackPosition: SnackPosition.BOTTOM);
-                    }
-                  } else {
-                    _courseController.purchaseCourse(currentCourse);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryNavy,
-                  minimumSize: Size(double.infinity, 56.h),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18.r)),
-                ),
-                child: Text(
-                  currentCourse.isPurchased
-                      ? "متابعة التعلم"
-                      : "امتلاك الكورس الآن",
-                  style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: 0.5),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    });
+    return const SizedBox.shrink(); // Simplified for now
   }
 }

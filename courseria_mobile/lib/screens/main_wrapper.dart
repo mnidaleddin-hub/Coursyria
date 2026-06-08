@@ -4,11 +4,15 @@ import 'package:get_storage/get_storage.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:animations/animations.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../widgets/responsive_wrapper.dart';
+import 'community_screen.dart';
 import 'home_screen.dart';
 import 'course_catalog_screen.dart';
 import 'wallet_screen.dart';
 import 'settings_screen.dart';
+import 'teacher_dashboard_screen.dart';
+import '../controllers/auth_controller.dart';
 import '../core/constants/constants.dart';
 
 class MainWrapper extends StatefulWidget {
@@ -26,30 +30,41 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
   final List<Widget> _pages = [
     HomeScreen(),
     const CourseCatalogScreen(),
+    const CommunityScreen(),
     WalletScreen(),
     const SettingsScreen(),
   ];
 
   final List<NavigationDestinationData> _destinations = [
     NavigationDestinationData(
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home_rounded,
+      icon: PhosphorIcons.house(),
+      selectedIcon: PhosphorIcons.house(PhosphorIconsStyle.fill),
       label: "الرئيسية",
+      selectedIconWidget: PhosphorIcon(PhosphorIcons.house(PhosphorIconsStyle.fill)).animate().scale(duration: 200.ms),
     ),
     NavigationDestinationData(
-      icon: Icons.grid_view_rounded,
-      selectedIcon: Icons.grid_view_rounded,
+      icon: PhosphorIcons.bookOpen(),
+      selectedIcon: PhosphorIcons.bookOpen(PhosphorIconsStyle.fill),
       label: "الكورسات",
+      selectedIconWidget: PhosphorIcon(PhosphorIcons.bookOpen(PhosphorIconsStyle.fill)).animate().scale(duration: 200.ms),
     ),
     NavigationDestinationData(
-      icon: Icons.account_balance_wallet_outlined,
-      selectedIcon: Icons.account_balance_wallet_rounded,
+      icon: PhosphorIcons.usersThree(),
+      selectedIcon: PhosphorIcons.usersThree(PhosphorIconsStyle.fill),
+      label: "المجتمع",
+      selectedIconWidget: PhosphorIcon(PhosphorIcons.usersThree(PhosphorIconsStyle.fill)).animate().scale(duration: 200.ms),
+    ),
+    NavigationDestinationData(
+      icon: PhosphorIcons.wallet(),
+      selectedIcon: PhosphorIcons.wallet(PhosphorIconsStyle.fill),
       label: "المحفظة",
+      selectedIconWidget: PhosphorIcon(PhosphorIcons.wallet(PhosphorIconsStyle.fill)).animate().scale(duration: 200.ms),
     ),
     NavigationDestinationData(
-      icon: Icons.settings_outlined,
-      selectedIcon: Icons.settings_rounded,
+      icon: PhosphorIcons.gear(),
+      selectedIcon: PhosphorIcons.gear(PhosphorIconsStyle.fill),
       label: "الإعدادات",
+      selectedIconWidget: PhosphorIcon(PhosphorIcons.gear(PhosphorIconsStyle.fill)).animate().scale(duration: 200.ms),
     ),
   ];
 
@@ -161,13 +176,22 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
   }
 
   Widget _buildFloatingMenu() {
+    final authController = Get.find<AuthController>();
+    final isTeacher = authController.userData['role'] == 'teacher';
+
     return Positioned(
-      bottom: 20.h,
+      bottom: 90.h,
       right: 20.w,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_isMenuOpen) ...[
+            if (isTeacher)
+              _buildMenuItem(Icons.dashboard_customize_rounded, "لوحة المعلم", () {
+                _toggleMenu();
+                Get.toNamed('/teacher-dashboard');
+              }),
+            if (isTeacher) SizedBox(height: 12.h),
             _buildMenuItem(Icons.support_agent_rounded, "الدعم الفني", () {}),
             SizedBox(height: 12.h),
             _buildMenuItem(Icons.share_rounded, "مشاركة", () {}),

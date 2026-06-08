@@ -1,0 +1,46 @@
+Analyzing courseria_mobile...                                   
+
+warning - The value of the field '_authService' isn't used - lib\controllers\auth_controller.dart:20:21 - unused_field
+   info - Statements in an if should be enclosed in a block - lib\controllers\auth_controller.dart:478:34 - curly_braces_in_flow_control_structures
+warning - The value of the field '_authController' isn't used - lib\controllers\support_chat_controller.dart:10:24 - unused_field
+   info - Don't invoke 'print' in production code - lib\controllers\support_chat_controller.dart:58:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\controllers\support_chat_controller.dart:117:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\controllers\support_chat_controller.dart:140:7 - avoid_print
+   info - 'WillPopScope' is deprecated and shouldn't be used. Use PopScope instead. This feature was deprecated after v3.12.0-1.0.pre - lib\controllers\system_controller.dart:126:7 - deprecated_member_use
+   info - 'WillPopScope.new' is deprecated and shouldn't be used. Use PopScope instead. This feature was deprecated after v3.12.0-1.0.pre - lib\controllers\system_controller.dart:126:7 - deprecated_member_use
+   info - Don't invoke 'print' in production code - lib\controllers\teacher_controller.dart:138:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\controllers\teacher_controller.dart:195:7 - avoid_print
+   info - The constant name 'gemini2_5_flash' isn't a lowerCamelCase identifier - lib\core\constants\constants.dart:70:3 - constant_identifier_names
+   info - The constant name 'gemini2_5_flash_lite' isn't a lowerCamelCase identifier - lib\core\constants\constants.dart:71:3 - constant_identifier_names
+   info - The constant name 'qwen3_next' isn't a lowerCamelCase identifier - lib\core\constants\constants.dart:72:3 - constant_identifier_names
+   info - 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\core\theme\app_theme.dart:18:9 - deprecated_member_use
+   info - 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\core\theme\app_theme.dart:51:9 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\main.dart:129:48 - prefer_const_constructors
+warning - The value of the field '_courseController' isn't used - lib\screens\account_screen.dart:17:26 - unused_field
+warning - The value of the local variable 'isFinished' isn't used - lib\screens\quiz_play_screen.dart:27:14 - unused_local_variable
+warning - The value of the field '_authController' isn't used - lib\screens\referral_rewards_screen.dart:18:24 - unused_field
+   info - 'WillPopScope' is deprecated and shouldn't be used. Use PopScope instead. This feature was deprecated after v3.12.0-1.0.pre - lib\screens\update_screen.dart:75:12 - deprecated_member_use
+   info - 'WillPopScope.new' is deprecated and shouldn't be used. Use PopScope instead. This feature was deprecated after v3.12.0-1.0.pre - lib\screens\update_screen.dart:75:12 - deprecated_member_use
+   info - The declaration '_buildCommentDeleteButton' isn't referenced - lib\screens\video_player_screen.dart:552:10 - unused_element
+  error - The argument type 'String?' can't be assigned to the parameter type 'String'.  - lib\screens\video_player_screen.dart:669:32 - argument_type_not_assignable
+warning - Dead code - lib\screens\video_player_screen.dart:672:5 - dead_code
+   info - The declaration '_buildCompleteButton' isn't referenced - lib\screens\video_player_screen.dart:724:10 - unused_element
+   info - The declaration '_buildDownloadButton' isn't referenced - lib\screens\video_player_screen.dart:748:10 - unused_element
+   info - The declaration '_buildSimpleActionButton' isn't referenced - lib\screens\video_player_screen.dart:838:10 - unused_element
+
+The Flutter CLI developer tool uses Google Analytics to report usage and diagnostic
+data along with package dependencies, and crash reporting to send basic crash
+reports. This data is used to help improve the Dart platform, Flutter framework,
+and related tools.
+
+Telemetry is not sent on the very first run. To disable reporting of telemetry,
+run this terminal command:
+
+    flutter --disable-analytics
+
+If you opt out of telemetry, an opt-out event will be sent, and then no further
+information will be sent. This data is collected in accordance with the Google
+Privacy Policy (https://policies.google.com/privacy).
+
+Please note that analytics reporting was already disabled, and will continue to be disabled.
+

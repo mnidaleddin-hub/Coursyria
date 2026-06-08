@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
@@ -17,7 +18,9 @@ import 'package:get_storage/get_storage.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/quiz_controller.dart';
 import '../services/ai_service.dart';
-import 'quiz_play_screen.dart';
+import '../core/utils/confetti_utils.dart';
+import '../widgets/custom_loading.dart';
+import 'ai_chat_screen.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final Lesson lesson;
@@ -39,6 +42,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
   final OfflineVideoManager _offlineManager = OfflineVideoManager();
   final TextEditingController _commentController = TextEditingController();
   bool _isInitializing = true;
+  bool _isFocusMode = false;
+  bool _isSmartPause = false;
+  DateTime? _pauseStartTime;
   late TabController _tabController;
   final FocusNode _noteFocus = FocusNode();
   final TextEditingController _noteController = TextEditingController();
@@ -120,9 +126,25 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
 
     // Sync Playback Progress
     _videoPlayerController!.addListener(() {
+      if (_videoPlayerController!.value.isPlaying) {
+        _isSmartPause = false;
+        _pauseStartTime = null;
+      } else if (!_videoPlayerController!.value.isPlaying && _videoPlayerController!.value.position > Duration.zero) {
+        if (_pauseStartTime == null) {
+          _pauseStartTime = DateTime.now();
+        } else if (DateTime.now().difference(_pauseStartTime!).inSeconds >= 30 && !_isSmartPause) {
+          setState(() => _isSmartPause = true);
+        }
+      }
+
       if (_videoPlayerController!.value.position.inSeconds % 10 == 0) {
         _courseController.savePlaybackProgress(
             widget.lesson.id, _videoPlayerController!.value.position.inSeconds);
+      }
+
+      // Check for completion
+      if (_videoPlayerController!.value.position >= _videoPlayerController!.value.duration && _videoPlayerController!.value.duration > Duration.zero) {
+        ConfettiUtils.playConfetti();
       }
     });
 
@@ -171,6 +193,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
               elevation: 0,
               actions: [
                 IconButton(
+                  icon: Icon(_isFocusMode ? Icons.visibility_rounded : Icons.visibility_off_rounded, color: Colors.white),
+                  onPressed: () {
+                    setState(() {
+                      _isFocusMode = !_isFocusMode;
+                    });
+                    if (_isFocusMode) {
+                      _chewieController?.enterFullScreen();
+                    }
+                  },
+                  tooltip: "وضع التركيز",
+                ),
+                IconButton(
                   icon: const Icon(Icons.settings_outlined, color: Colors.white),
                   onPressed: () => _showQualitySelector(context),
                 ),
@@ -183,8 +217,21 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
             ),
       body: OrientationBuilder(
         builder: (context, orientation) {
-          if (orientation == Orientation.landscape) {
-            return _buildPlayerWithGestures();
+          if (orientation == Orientation.landscape || _isFocusMode) {
+            return Stack(
+              children: [
+                _buildPlayerWithGestures(),
+                if (_isFocusMode)
+                  Positioned(
+                    top: 20,
+                    left: 20,
+                    child: IconButton(
+                      icon: const Icon(Icons.close_fullscreen_rounded, color: Colors.white, size: 30),
+                      onPressed: () => setState(() => _isFocusMode = false),
+                    ),
+                  ),
+              ],
+            );
           }
 
           return Column(
@@ -194,20 +241,26 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
 
               // 2. Interactive Info Section (Premium Overhaul)
               Expanded(
-                child: Column(
-                  children: [
-                    _buildInteractiveTabBar(),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildChaptersTab(),
-                          _buildNotesTab(),
-                          _buildDiscussionTab(),
-                        ],
-                      ),
+                child: Opacity(
+                  opacity: _isFocusMode ? 0.1 : 1.0,
+                  child: AbsorbPointer(
+                    absorbing: _isFocusMode,
+                    child: Column(
+                      children: [
+                        _buildInteractiveTabBar(),
+                        Expanded(
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              _buildChaptersTab(),
+                              _buildNotesTab(),
+                              _buildDiscussionTab(),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -228,10 +281,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
                     _chewieController!
                         .videoPlayerController.value.isInitialized
                 ? Chewie(controller: _chewieController!)
-                : const CircularProgressIndicator(color: AppColors.accentTeal),
+                : const CustomLoadingIndicator(color: AppColors.accentTeal),
           ),
+          if (_isSmartPause)
+            _buildSmartPauseOverlay(),
           // Gesture Overlays
-          if (!_isInitializing)
+          if (!_isInitializing && !_isSmartPause)
             Row(
               children: [
                 Expanded(
@@ -253,12 +308,61 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
     );
   }
 
+  Widget _buildSmartPauseOverlay() {
+    return Container(
+      color: Colors.black87,
+      padding: EdgeInsets.all(20.w),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.auto_awesome_rounded, color: AppColors.accentTeal, size: 40.r),
+          SizedBox(height: 12.h),
+          Text("استراحة ذكية ✨", style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8.h),
+          Text("لقد توقفت لفترة، هل تريد مراجعة ما فاتك؟", style: TextStyle(color: Colors.white70, fontSize: 12.sp), textAlign: TextAlign.center),
+          SizedBox(height: 20.h),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  setState(() => _isSmartPause = false);
+                  _videoPlayerController?.play();
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentTeal),
+                child: const Text("متابعة", style: TextStyle(color: Colors.black)),
+              ),
+              SizedBox(width: 12.w),
+              OutlinedButton(
+                onPressed: () => generateAndSaveSummary(),
+                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white24)),
+                child: const Text("ملخص سريع", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   void _seekRelative(int seconds) {
     if (_videoPlayerController == null) return;
     final newPos = _videoPlayerController!.value.position +
         Duration(seconds: seconds);
     _videoPlayerController!.seekTo(newPos);
     _authController.triggerHaptic(AppHapticFeedback.light);
+    
+    // Add visual feedback for rewind
+    if (seconds < 0) {
+      Get.rawSnackbar(
+        message: "تم الرجوع 10 ثوانٍ ⏪",
+        duration: const Duration(seconds: 1),
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.black45,
+        borderRadius: 50,
+        margin: EdgeInsets.symmetric(horizontal: 100.w, vertical: 20.h),
+      );
+    }
   }
 
   Widget _buildInteractiveTabBar() {
@@ -458,6 +562,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
                 _buildQuizButton(),
                 SizedBox(width: 8.w),
                 _buildSummaryButton(),
+                SizedBox(width: 8.w),
+                _buildInviteButton(),
+                SizedBox(width: 8.w),
+                _buildAIChatButton(),
+                SizedBox(width: 8.w),
+                _buildAIActionMenu(),
               ],
             ),
           ),
@@ -549,36 +659,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
     return "$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  Widget _buildCommentDeleteButton(Map<String, dynamic> comment) {
-    final currentUserId = Get.find<AuthController>().userData['id'];
-    final bool isOwner = comment['user_id'] == currentUserId;
-    final bool isTeacher = Get.find<AuthController>().isTeacher;
-    // For teacher, they can delete if it's their course. Assuming lesson.teacherId exists.
-    final bool canDelete = isOwner || (isTeacher && widget.lesson.teacherId == currentUserId);
-
-    if (!canDelete) return const SizedBox.shrink();
-
-    return IconButton(
-      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-      onPressed: () {
-        Get.defaultDialog(
-          title: "حذف التعليق",
-          middleText: "هل أنت متأكد من حذف هذا التعليق؟",
-          backgroundColor: AppColors.secondaryNavy,
-          titleStyle: const TextStyle(color: Colors.white),
-          middleTextStyle: const TextStyle(color: Colors.white70),
-          textConfirm: "حذف",
-          textCancel: "إلغاء",
-          confirmTextColor: Colors.white,
-          onConfirm: () {
-            _lessonController.deleteComment(comment['id'].toString(), widget.lesson.id);
-            Get.back();
-          },
-        );
-      },
-    );
-  }
-
   Widget _buildSummaryButton() {
     return InkWell(
       onTap: () => generateAndSaveSummary(),
@@ -599,6 +679,58 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
                   color: AppColors.accentTeal,
                   fontSize: 13.sp,
                   fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInviteButton() {
+    return InkWell(
+      onTap: () async {
+        final link = await _courseController.generateInviteLink(widget.lesson.id);
+        Get.defaultDialog(
+          title: "مذاكرة مع صديق 🤝",
+          backgroundColor: AppColors.primaryNavy,
+          titleStyle: const TextStyle(color: Colors.white),
+          content: Column(
+            children: [
+              Text("شارك هذا الرابط مع صديق للمذاكرة سوياً!", style: TextStyle(color: Colors.white70, fontSize: 14.sp)),
+              SizedBox(height: 20.h),
+              Container(
+                padding: EdgeInsets.all(12.r),
+                decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(8.r)),
+                child: Text(link, style: TextStyle(color: AppColors.accentTeal, fontSize: 12.sp), textAlign: TextAlign.center),
+              ),
+              SizedBox(height: 20.h),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: link));
+                  Get.back();
+                  Get.snackbar("تم النسخ", "تم نسخ الرابط الحافظة", backgroundColor: AppColors.accentTeal, colorText: Colors.white);
+                },
+                icon: const Icon(Icons.copy_rounded),
+                label: const Text("نسخ الرابط"),
+              ),
+            ],
+          ),
+        );
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+        decoration: BoxDecoration(
+          color: Colors.purple.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.purpleAccent, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.people_alt_rounded, color: Colors.purpleAccent, size: 20.sp),
+            SizedBox(width: 5.w),
+            Text(
+              "ذاكر مع صديق",
+              style: TextStyle(color: Colors.purpleAccent, fontSize: 13.sp, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -670,15 +802,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
       _displaySummaryBottomSheet(cachedSummary, isCached: true);
       return;
     }
-
+  
     Get.dialog(
-      const Center(child: CircularProgressIndicator(color: AppColors.accentTeal)),
+      const Center(child: CustomLoadingIndicator(color: AppColors.accentTeal)),
       barrierDismissible: false,
     );
     
     try {
-      final aiService = AIService();
-      final summary = await aiService.summarizeLesson(widget.lesson.title, widget.lesson.description ?? "");
+      final aiService = Get.find<AIService>();
+      final summary = await aiService.summarizeLesson(widget.lesson.title, widget.lesson.description ?? "", widget.lesson.id);
       Get.back(); // Close loading
       _displaySummaryBottomSheet(summary, isCached: false);
     } catch (e) {
@@ -690,14 +822,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
   Widget _buildQuizButton() {
     return InkWell(
       onTap: () {
-        final quizController = Get.put(QuizController());
-        quizController.startQuiz(
+        final quizController = Get.find<QuizController>();
+        quizController.generateAndStartAIQuiz(
           type: 'lesson',
           topicName: widget.lesson.title,
-          cId: null, // We might want to pass courseId here if available
-          lId: widget.lesson.id,
+          lessonId: widget.lesson.id,
         );
-        Get.to(() => QuizPlayScreen());
       },
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
@@ -716,86 +846,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
                   color: Colors.amber,
                   fontSize: 13.sp,
                   fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompleteButton() {
-    return InkWell(
-      onTap: () => _lessonController.markLessonAsCompleted(widget.lesson, "كورس متميز"), // Replace with actual course title if available
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-        decoration: BoxDecoration(
-          color: AppColors.accentTeal.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.accentTeal, width: 1),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: AppColors.accentTeal, size: 20.sp),
-            SizedBox(width: 5.w),
-            Text(
-              "اكتمل الدرس",
-              style: TextStyle(color: AppColors.accentTeal, fontSize: 13.sp, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDownloadButton() {
-    if (_lessonController.isDownloading.value) {
-      return Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 15, height: 15,
-              child: CircularProgressIndicator(
-                value: _lessonController.downloadProgress.value,
-                strokeWidth: 2,
-                color: AppColors.accentTeal,
-              ),
-            ),
-            SizedBox(width: 8.w),
-            Text(
-              "${(_lessonController.downloadProgress.value * 100).toInt()}%",
-              style: TextStyle(color: Colors.white, fontSize: 13.sp),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return InkWell(
-      onTap: () => _lessonController.isDownloaded.value 
-          ? null // Already downloaded
-          : _lessonController.downloadLesson(widget.lesson, widget.videoUrl),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              _lessonController.isDownloaded.value ? Icons.check_circle : Icons.download_for_offline_outlined,
-              color: _lessonController.isDownloaded.value ? AppColors.accentTeal : Colors.white,
-              size: 20.sp,
-            ),
-            SizedBox(width: 5.w),
-            Text(
-              _lessonController.isDownloaded.value ? "محمل" : "تحميل",
-              style: TextStyle(color: Colors.white, fontSize: 13.sp),
             ),
           ],
         ),
@@ -837,20 +887,125 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
     );
   }
 
-  Widget _buildSimpleActionButton(IconData icon, String label) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
+  Widget _buildAIChatButton() {
+    return InkWell(
+      onTap: () {
+        Get.to(() => AIChatScreen(
+              lessonId: widget.lesson.id,
+              lessonTitle: widget.lesson.title,
+            ));
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+        decoration: BoxDecoration(
+          color: AppColors.accentTeal.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.accentTeal, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.chat_bubble_outline_rounded,
+                color: AppColors.accentTeal, size: 20.sp),
+            SizedBox(width: 5.w),
+            Text(
+              "اسأل AI",
+              style: TextStyle(
+                  color: AppColors.accentTeal,
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildAIActionMenu() {
+    return PopupMenuButton<String>(
+      onSelected: (val) => _handleAIAction(val),
+      icon: Container(
+        padding: EdgeInsets.all(8.r),
+        decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), shape: BoxShape.circle),
+        child: const Icon(Icons.auto_awesome_rounded, color: Colors.amber, size: 20),
+      ),
+      color: AppColors.secondaryNavy,
+      itemBuilder: (context) => [
+        _buildPopupItem("ترجمة الدرس", Icons.translate_rounded, "translate"),
+        _buildPopupItem("تبسيط النص", Icons.child_care_rounded, "simplify"),
+        _buildPopupItem("كلمات مفتاحية", Icons.vpn_key_rounded, "keywords"),
+      ],
+    );
+  }
+
+  PopupMenuItem<String> _buildPopupItem(String title, IconData icon, String value) {
+    return PopupMenuItem(
+      value: value,
       child: Row(
         children: [
-          Icon(icon, color: Colors.white, size: 20.sp),
-          SizedBox(width: 5.w),
-          Text(label, style: TextStyle(color: Colors.white, fontSize: 13.sp)),
+          Icon(icon, color: AppColors.accentTeal, size: 18),
+          SizedBox(width: 12.w),
+          Text(title, style: TextStyle(color: Colors.white, fontSize: 13.sp)),
         ],
       ),
+    );
+  }
+
+  void _handleAIAction(String action) {
+    Get.dialog(const Center(child: CustomLoadingIndicator(color: AppColors.accentTeal)), barrierDismissible: false);
+    final aiService = AIService();
+    final contextText = "${widget.lesson.title}\n${widget.lesson.description}";
+
+    Future<String> future;
+    String title;
+
+    switch (action) {
+      case 'translate':
+        future = aiService.translateText(contextText);
+        title = "ترجمة الدرس";
+        break;
+      case 'simplify':
+        future = aiService.simplifyText(contextText);
+        title = "تبسيط المحتوى";
+        break;
+      case 'keywords':
+        future = aiService.extractKeywords(contextText);
+        title = "أهم الكلمات المفتاحية";
+        break;
+      default:
+        return;
+    }
+
+    future.then((res) {
+      Get.back();
+      _displayAIResultSheet(title, res);
+    }).catchError((e) {
+      Get.back();
+      Get.snackbar("خطأ", "فشل تنفيذ العملية الذكية");
+    });
+  }
+
+  void _displayAIResultSheet(String title, String content) {
+    Get.bottomSheet(
+      Container(
+        height: Get.height * 0.6,
+        padding: EdgeInsets.all(24.r),
+        decoration: const BoxDecoration(color: AppColors.primaryNavy, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+        child: Column(
+          children: [
+            Text(title, style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.bold)),
+            SizedBox(height: 20.h),
+            Expanded(
+              child: SingleChildScrollView(
+                child: MarkdownBody(
+                  data: content,
+                  styleSheet: MarkdownStyleSheet(p: TextStyle(color: Colors.white70, fontSize: 14.sp, height: 1.5)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
     );
   }
 

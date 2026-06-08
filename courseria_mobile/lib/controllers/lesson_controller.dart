@@ -9,6 +9,7 @@ import '../models/course_model.dart';
 import '../core/constants/constants.dart';
 import '../core/utils/offline_video_manager.dart';
 import 'package:logger/logger.dart';
+import 'system_controller.dart';
 
 class LessonController extends GetxController {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConstants.baseUrl));
@@ -114,22 +115,32 @@ class LessonController extends GetxController {
       isLoading.value = true;
       hasError.value = false;
 
-      // Type Safety check for UUID (Regex validation)
-      final uuidRegex = RegExp(
-          r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-          caseSensitive: false);
-
-      if (!uuidRegex.hasMatch(courseId)) {
+      // 1. UUID Validation using Helper from SystemController
+      final systemController = Get.find<SystemController>();
+      if (!systemController.isValidUuid(courseId)) {
         _logger.e("Invalid UUID format for course_id: $courseId");
+        
+        // Proactive Fix: If in Offline Mode or Dev, we allow mock data even with bad UUID
+        if (systemController.isOfflineMode.value) {
+          await Future.delayed(const Duration(milliseconds: 800));
+          lessons.assignAll([
+            Lesson(id: "l1", title: "مقدمة في الجبر", isFree: true, duration: "15:00"),
+            Lesson(id: "l2", title: "المعادلات من الدرجة الثانية", isFree: false, duration: "25:00"),
+            Lesson(id: "l3", title: "المتراجحات والقيمة المطلقة", isFree: false, duration: "20:00"),
+          ]);
+          isSubscribed.value = true;
+          return;
+        }
+        
         throw "تنسيق معرف الكورس غير صالح (UUID required)";
       }
 
       _logger.d("Fetching lessons for course_id: $courseId");
 
       // 1. Fetch lessons from API as requested
-      // Format: https://coursyria-api.onrender.com/lessons?course_id={ID}
+      // Format: https://coursyria-api.onrender.com/courses/{course_id}/lessons
       final response =
-          await _dio.get('/lessons', queryParameters: {'course_id': courseId});
+          await _dio.get('/courses/$courseId/lessons');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -202,6 +213,17 @@ class LessonController extends GetxController {
   Future<void> fetchLessonNotes(String lessonId) async {
     try {
       final user = _supabase.auth.currentUser;
+      
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        lessonNotes.assignAll([
+          {'id': 'n1', 'content': 'ملاحظة مهمة جداً عن الجبر', 'timestamp': 45},
+          {'id': 'n2', 'content': 'قاعدة المثلث الذهبي', 'timestamp': 120},
+        ]);
+        return;
+      }
+      
       if (user == null) return;
       final response = await _supabase
           .from('lesson_notes')
@@ -237,6 +259,18 @@ class LessonController extends GetxController {
 
   Future<void> fetchLessonChapters(String lessonId) async {
     try {
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        lessonChapters.assignAll([
+          {'id': 'c1', 'title': 'البداية والترحيب', 'timestamp': 0},
+          {'id': 'c2', 'title': 'شرح المفهوم الأساسي', 'timestamp': 180},
+          {'id': 'c3', 'title': 'أمثلة عملية', 'timestamp': 450},
+          {'id': 'c4', 'title': 'ملخص الدرس', 'timestamp': 800},
+        ]);
+        return;
+      }
+
       final response = await _supabase
           .from('lesson_chapters')
           .select()
@@ -258,6 +292,16 @@ class LessonController extends GetxController {
 
   Future<void> fetchComments(String lessonId) async {
     try {
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        comments.assignAll([
+          {'id': 'co1', 'content': 'درس رائع جداً، شكراً لك أستاذ!', 'profiles': {'full_name': 'أحمد السوري'}},
+          {'id': 'co2', 'content': 'هل يمكن شرح النقطة الثانية مرة أخرى؟', 'profiles': {'full_name': 'سارة المحمد'}},
+        ]);
+        return;
+      }
+
       final response = await _supabase
           .from('comments')
           .select('*, profiles:user_id(full_name)')

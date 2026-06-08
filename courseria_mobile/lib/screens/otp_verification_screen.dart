@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:pinput/pinput.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../controllers/auth_controller.dart';
 import '../core/constants/constants.dart';
+import '../widgets/shake_widget.dart';
+import '../widgets/custom_loading.dart';
+import '../widgets/pressable_scale.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({super.key});
@@ -12,21 +16,22 @@ class OtpVerificationScreen extends StatefulWidget {
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
 }
 
-class _OtpVerificationScreenState extends State<OtpVerificationScreen> with SingleTickerProviderStateMixin {
+class _OtpVerificationScreenState extends State<OtpVerificationScreen> with TickerProviderStateMixin {
   final AuthController _authController = Get.find<AuthController>();
   final TextEditingController _pinController = TextEditingController();
   final FocusNode _pinFocus = FocusNode();
-  late AnimationController _shakeController;
+  final GlobalKey<ShakeWidgetState> _shakeKey = GlobalKey<ShakeWidgetState>();
+  late AnimationController _gradientController;
+  final RxBool _hasError = false.obs;
 
   @override
   void initState() {
     super.initState();
-    _shakeController = AnimationController(
-      duration: const Duration(milliseconds: 500),
+    _gradientController = AnimationController(
       vsync: this,
-    );
-    
-    // Auto focus on open
+      duration: const Duration(seconds: 15),
+    )..repeat(reverse: true);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _pinFocus.requestFocus();
     });
@@ -36,7 +41,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
   void dispose() {
     _pinController.dispose();
     _pinFocus.dispose();
-    _shakeController.dispose();
+    _gradientController.dispose();
     super.dispose();
   }
 
@@ -53,38 +58,83 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
 
   void _triggerErrorState() {
     _authController.triggerHaptic(AppHapticFeedback.error);
-    _shakeController.forward(from: 0.0);
+    _shakeKey.currentState?.shake();
     _pinController.clear();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primaryNavy,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-          onPressed: () => Get.back(),
-        ),
+      body: Stack(
+        children: [
+          _buildAnimatedBackground(),
+          SafeArea(
+            child: ShakeWidget(
+              key: _shakeKey,
+              child: Column(
+                children: [
+                  _buildAppBar(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.symmetric(horizontal: 24.w),
+                      child: Column(
+                        children: [
+                          SizedBox(height: 20.h),
+                          _buildIconHeader(),
+                          SizedBox(height: 40.h),
+                          _buildHeaderText(),
+                          SizedBox(height: 48.h),
+                          _buildPinInput(),
+                          SizedBox(height: 48.h),
+                          _buildVerifyButton(),
+                          SizedBox(height: 32.h),
+                          _buildResendSection(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: 24.w),
-        child: Column(
-          children: [
-            SizedBox(height: 20.h),
-            _buildIconHeader(),
-            SizedBox(height: 32.h),
-            _buildHeaderText(),
-            SizedBox(height: 40.h),
-            _buildPinInput(),
-            SizedBox(height: 40.h),
-            _buildVerifyButton(),
-            SizedBox(height: 30.h),
-            _buildResendSection(),
-          ],
-        ),
+    );
+  }
+
+  Widget _buildAnimatedBackground() {
+    return AnimatedBuilder(
+      animation: _gradientController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF1A1A2E),
+                Color.lerp(const Color(0xFF1A1A2E), const Color(0xFF16213E), _gradientController.value)!,
+                Color.lerp(const Color(0xFF16213E), AppColors.primaryNavy.withOpacity(0.1), _gradientController.value)!,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            onPressed: () => Get.back(),
+          ),
+          const Spacer(),
+        ],
       ),
     );
   }
@@ -92,67 +142,62 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
   Widget _buildIconHeader() {
     return Obx(() {
       IconData channelIcon;
+      Color iconColor;
       switch (_authController.selectedChannel.value) {
-        case OtpChannel.whatsapp: channelIcon = Icons.message; break;
-        case OtpChannel.telegram: channelIcon = Icons.send; break;
-        case OtpChannel.email: channelIcon = Icons.mail; break;
-        default: channelIcon = Icons.lock;
+        case OtpChannel.whatsapp: 
+          channelIcon = Icons.message_rounded; 
+          iconColor = const Color(0xFF25D366);
+          break;
+        case OtpChannel.telegram: 
+          channelIcon = Icons.send_rounded; 
+          iconColor = const Color(0xFF0088CC);
+          break;
+        default: 
+          channelIcon = Icons.lock_outline_rounded;
+          iconColor = AppColors.primaryNavy;
       }
       
       return Container(
-        padding: EdgeInsets.all(24.r),
+        padding: EdgeInsets.all(28.r),
         decoration: BoxDecoration(
-          color: AppColors.secondaryNavy,
+          color: Colors.white.withOpacity(0.03),
           shape: BoxShape.circle,
+          border: Border.all(color: Colors.white10),
           boxShadow: [
             BoxShadow(
-              color: AppColors.accentTeal.withOpacity(0.1),
-              blurRadius: 40,
-              spreadRadius: 5,
+              color: iconColor.withOpacity(0.1),
+              blurRadius: 30,
+              spreadRadius: 2,
             ),
           ],
-          border: Border.all(color: AppColors.accentTeal.withOpacity(0.2), width: 2),
         ),
-        child: Icon(channelIcon, size: 64.sp, color: AppColors.accentTeal),
+        child: Icon(channelIcon, size: 56.sp, color: iconColor),
       );
     });
   }
 
   Widget _buildHeaderText() {
     return Obx(() {
-      String identifier = _authController.authMethod.value == AuthMethod.email 
-          ? _authController.email.value 
-          : _authController.phoneNumber.value;
-      
-      String channelIcon = "";
-      Color channelColor = Colors.white;
-      switch (_authController.selectedChannel.value) {
-        case OtpChannel.whatsapp: 
-          channelIcon = "واتساب"; 
-          channelColor = Colors.greenAccent;
-          break;
-        case OtpChannel.telegram: 
-          channelIcon = "تليغرام"; 
-          channelColor = Colors.blueAccent;
-          break;
-        case OtpChannel.email: 
-          channelIcon = "البريد الإلكتروني"; 
-          channelColor = AppColors.accentTeal;
-          break;
-      }
+      String identifier = _authController.phoneNumber.value;
+      String channelName = _authController.selectedChannel.value == OtpChannel.whatsapp ? "واتساب" : "تليغرام";
 
       return Column(
         children: [
           Text(
-            "تحقق من الأمان",
-            style: TextStyle(fontSize: 26.sp, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
+            "كود التحقق",
+            style: TextStyle(
+              fontSize: 28.sp,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
           ),
           SizedBox(height: 16.h),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10.w),
+            padding: EdgeInsets.symmetric(horizontal: 20.w),
             child: Text.rich(
               TextSpan(
-                text: "لقد أرسلنا رمز التأكيد إلى ",
+                text: "أدخل الرمز المكون من 6 أرقام المرسل إلى ",
                 style: TextStyle(fontSize: 15.sp, color: Colors.white60, height: 1.5),
                 children: [
                   TextSpan(
@@ -164,18 +209,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
                     style: TextStyle(color: Colors.white60),
                   ),
                   TextSpan(
-                    text: channelIcon,
-                    style: TextStyle(color: channelColor, fontWeight: FontWeight.bold),
+                    text: channelName,
+                    style: TextStyle(
+                      color: _authController.selectedChannel.value == OtpChannel.whatsapp 
+                        ? const Color(0xFF25D366) 
+                        : const Color(0xFF0088CC),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
               textAlign: TextAlign.center,
             ),
-          ),
-          TextButton.icon(
-            onPressed: () => Get.back(),
-            icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.accentTeal),
-            label: Text("تعديل الرقم", style: TextStyle(color: AppColors.accentTeal, fontSize: 13.sp)),
           ),
         ],
       );
@@ -184,63 +229,61 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
 
   Widget _buildPinInput() {
     final defaultPinTheme = PinTheme(
-      width: 50.w,
-      height: 60.h,
-      textStyle: TextStyle(fontSize: 22.sp, color: Colors.white, fontWeight: FontWeight.bold),
+      width: 52.w,
+      height: 62.h,
+      textStyle: TextStyle(fontSize: 24.sp, color: Colors.white, fontWeight: FontWeight.bold),
       decoration: BoxDecoration(
-        color: AppColors.secondaryNavy,
-        borderRadius: BorderRadius.circular(12.r),
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(15.r),
         border: Border.all(color: Colors.white10),
       ),
     );
 
-    return AnimatedBuilder(
-      animation: _shakeController,
-      builder: (context, child) {
-        final offset = Curves.elasticIn.transform(_shakeController.value) * 10.0;
-        return Transform.translate(
-          offset: Offset(offset, 0),
-          child: child,
+    return Pinput(
+          length: 6,
+          controller: _pinController,
+          focusNode: _pinFocus,
+          defaultPinTheme: defaultPinTheme,
+          focusedPinTheme: defaultPinTheme.copyWith(
+            decoration: defaultPinTheme.decoration!.copyWith(
+              color: Colors.white.withOpacity(0.08),
+              border: Border.all(color: AppColors.primaryNavy, width: 2),
+              boxShadow: [
+                BoxShadow(color: AppColors.primaryNavy.withOpacity(0.2), blurRadius: 15),
+              ],
+            ),
+          ),
+          errorPinTheme: defaultPinTheme.copyWith(
+            decoration: defaultPinTheme.decoration!.copyWith(
+              border: Border.all(color: Colors.redAccent, width: 2),
+            ),
+          ),
+          onCompleted: (pin) => _onVerify(),
+          keyboardType: TextInputType.text,
+          closeKeyboardWhenCompleted: true,
         );
-      },
-      child: Pinput(
-        length: 6,
-        controller: _pinController,
-        focusNode: _pinFocus,
-        defaultPinTheme: defaultPinTheme,
-        focusedPinTheme: defaultPinTheme.copyWith(
-          decoration: defaultPinTheme.decoration!.copyWith(
-            border: Border.all(color: AppColors.accentTeal, width: 2),
-            boxShadow: [
-              BoxShadow(color: AppColors.accentTeal.withOpacity(0.1), blurRadius: 10),
-            ],
-          ),
-        ),
-        errorPinTheme: defaultPinTheme.copyWith(
-          decoration: defaultPinTheme.decoration!.copyWith(
-            border: Border.all(color: Colors.redAccent, width: 2),
-          ),
-        ),
-        onCompleted: (pin) => _onVerify(),
-        keyboardType: TextInputType.text, // Allow special chars for backdoor
-        closeKeyboardWhenCompleted: true,
-      ),
-    );
   }
 
   Widget _buildVerifyButton() {
-    return Obx(() => SizedBox(
-      width: double.infinity,
-      height: 55.h,
-      child: ElevatedButton(
-        onPressed: _authController.isLoading.value ? null : _onVerify,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.accentTeal,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r)),
-          elevation: 5,
+    return Obx(() => PressableScale(
+      onTap: _authController.isLoading.value ? null : _onVerify,
+      child: Container(
+        width: double.infinity,
+        height: 58.h,
+        decoration: BoxDecoration(
+          color: AppColors.primaryNavy,
+          borderRadius: BorderRadius.circular(18.r),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primaryNavy.withOpacity(0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
+        alignment: Alignment.center,
         child: _authController.isLoading.value
-            ? const CircularProgressIndicator(color: Colors.white)
+            ? const CustomLoadingIndicator(color: Colors.white, size: 24)
             : Text(
                 "تحقق الآن",
                 style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: Colors.white),
@@ -269,23 +312,22 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> with Sing
           else
             TextButton.icon(
               onPressed: () => _authController.resendOTP(),
-              icon: const Icon(Icons.refresh_rounded, color: AppColors.accentTeal),
+              icon: const Icon(Icons.refresh_rounded, color: AppColors.primaryNavy),
               label: const Text(
                 "إعادة إرسال الرمز",
-                style: TextStyle(color: AppColors.accentTeal, fontWeight: FontWeight.bold),
+                style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold),
               ),
             ),
-          if (_authController.resendAttempts.value > 0)
-            Padding(
-              padding: EdgeInsets.only(top: 8.h),
-              child: Text(
-                "محاولات إعادة الإرسال: ${_authController.resendAttempts.value}",
-                style: TextStyle(color: Colors.white24, fontSize: 12.sp),
-              ),
+          SizedBox(height: 12.h),
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text(
+              "تغيير رقم الهاتف",
+              style: TextStyle(color: Colors.white38, fontSize: 13.sp),
             ),
+          ),
         ],
       );
     });
   }
 }
-

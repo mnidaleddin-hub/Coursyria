@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/wallet_service.dart';
 import '../models/wallet_transaction_model.dart';
 import 'auth_controller.dart';
+import 'system_controller.dart';
 
 class WalletController extends GetxController {
   final WalletService _walletService = WalletService();
@@ -29,6 +30,13 @@ class WalletController extends GetxController {
   Future<void> submitCharityRequest(String justification) async {
     try {
       isLoading.value = true;
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(seconds: 1));
+        Get.snackbar("تم الإرسال (وضع التجربة)", "تم استلام طلب الدعم المادي بنجاح وسيتم الرد عليك قريباً.",
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
       final response = await _authController.dio.post('/wallet/charity-request',
           data: {"justification": justification});
       Get.snackbar("تم الإرسال", response.data['message'],
@@ -45,6 +53,13 @@ class WalletController extends GetxController {
       String title, String message, String category) async {
     try {
       isLoading.value = true;
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(seconds: 1));
+        Get.snackbar("تم الإرسال (وضع التجربة)", "تم فتح تذكرة دعم فني جديدة برقم #MOCK-123",
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
       final response = await _authController.dio.post('/wallet/support-ticket',
           data: {"title": title, "message": message, "category": category});
       Get.snackbar("تم الإرسال", response.data['message'],
@@ -57,9 +72,44 @@ class WalletController extends GetxController {
     }
   }
 
+  Future<void> fetchWalletBalance() => fetchWalletData();
+
   Future<void> fetchWalletData() async {
     try {
       isLoading.value = true;
+
+      final systemController = Get.find<SystemController>();
+      if (systemController.isOfflineMode.value) {
+        await Future.delayed(const Duration(seconds: 1));
+        balance.value = "75000";
+        history.assignAll([
+           WalletTransaction(
+             id: "1",
+             transactionId: "TRX-123456",
+             amount: 50000,
+             status: TransactionStatus.approved,
+             createdAt: DateTime.now().subtract(const Duration(days: 2)),
+             note: "شحن عبر الهرم",
+           ),
+           WalletTransaction(
+             id: "2",
+             transactionId: "TRX-987654",
+             amount: 15000,
+             status: TransactionStatus.approved,
+             createdAt: DateTime.now().subtract(const Duration(days: 5)),
+             note: "شراء كورس الرياضيات",
+           ),
+           WalletTransaction(
+             id: "3",
+             transactionId: "TRX-456789",
+             amount: 25000,
+             status: TransactionStatus.pending,
+             createdAt: DateTime.now().subtract(const Duration(hours: 4)),
+             note: "طلب شحن قيد المراجعة",
+           ),
+         ]);
+        return;
+      }
 
       // 1. Fetch real balance from Backend
       final response = await _walletService.fetchBalance();

@@ -34,8 +34,8 @@ class ResponsiveWrapper extends StatelessWidget {
                   selectedLabelTextStyle: const TextStyle(color: AppColors.accentTeal, fontWeight: FontWeight.bold),
                   unselectedLabelTextStyle: const TextStyle(color: Colors.white54),
                   destinations: destinations.map((d) => NavigationRailDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon),
+                    icon: d.iconWidget ?? Icon(d.icon),
+                    selectedIcon: d.selectedIconWidget ?? Icon(d.selectedIcon),
                     label: Text(d.label),
                   )).toList(),
                 ),
@@ -62,8 +62,8 @@ class ResponsiveWrapper extends StatelessWidget {
                 unselectedItemColor: Colors.white54,
                 type: BottomNavigationBarType.fixed,
                 items: destinations.map((d) => BottomNavigationBarItem(
-                  icon: Icon(d.icon),
-                  activeIcon: Icon(d.selectedIcon),
+                  icon: d.iconWidget ?? Icon(d.icon),
+                  activeIcon: d.selectedIconWidget ?? Icon(d.selectedIcon),
                   label: d.label,
                 )).toList(),
               ),
@@ -79,10 +79,14 @@ class NavigationDestinationData {
   final IconData icon;
   final IconData selectedIcon;
   final String label;
+  final Widget? iconWidget;
+  final Widget? selectedIconWidget;
 
   NavigationDestinationData({
     required this.icon,
     required this.selectedIcon,
     required this.label,
+    this.iconWidget,
+    this.selectedIconWidget,
   });
 }

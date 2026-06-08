@@ -198,9 +198,13 @@ class Course {
   final int? viewsCount; // New field
   final int? likesCount; // New field
   final String? thumbnailUrl; // New field
+  String get instructorName => instructor;
   final String? teacherId; // New field
   final List<Lesson> lessons;
   bool isPurchased;
+
+  String get category => subject;
+  int get lessonsCount => lessons.length;
 
   Course({
     required this.id,

@@ -337,14 +337,14 @@ class _TeacherPanelScreenState extends State<TeacherPanelScreen> with SingleTick
             Get.snackbar("تنبيه", "يرجى ملء جميع الحقول الأساسية");
             return;
           }
-          _teacherController.requestNewCourse(
-            title: _reqTitleController.text,
-            subject: _reqSubjectController.text,
-            gradeLevel: _reqGradeController.text,
-            price: double.tryParse(_reqPriceController.text) ?? 0,
-            description: _reqDescController.text,
-            generalNotes: _reqNotesController.text,
-          );
+          _teacherController.requestNewCourse({
+            'title': _reqTitleController.text,
+            'subject': _reqSubjectController.text,
+            'grade_level': _reqGradeController.text,
+            'price': double.tryParse(_reqPriceController.text) ?? 0,
+            'description': _reqDescController.text,
+            'general_notes': _reqNotesController.text,
+          });
           // Clear form
           _reqTitleController.clear();
           _reqSubjectController.clear();

@@ -1,17 +1,20 @@
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:countup/countup.dart'; // Import for AnimatedCounter
 import '../controllers/auth_controller.dart';
+import '../screens/wallet_screen.dart'; // Import WalletScreen
 // Import the new screen
 import '../controllers/wallet_controller.dart';
 import '../controllers/course_controller.dart';
 import '../core/constants/constants.dart';
 import '../models/course_model.dart';
-import '../services/ai_service.dart';
 import '../widgets/shimmer_loading.dart';
 import 'wallet_screen.dart';
 import 'course_details_screen.dart';
-
+import '../controllers/dashboard_controller.dart';
+import '../models/ai_models.dart';
 
 class HomeScreen extends StatelessWidget {
   HomeScreen({super.key});
@@ -19,6 +22,7 @@ class HomeScreen extends StatelessWidget {
   final AuthController _authController = Get.find<AuthController>();
   final WalletController _walletController = Get.find<WalletController>();
   final CourseController _courseController = Get.find<CourseController>();
+  final DashboardController _dashboardController = Get.put(DashboardController());
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +32,11 @@ class HomeScreen extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             return RefreshIndicator(
-              onRefresh: () => _courseController.fetchCoursesFromApi(),
+              onRefresh: () async {
+                await _courseController.fetchCoursesFromApi();
+                await _authController.fetchUserProfile();
+                await _walletController.fetchWalletBalance();
+              },
               child: CustomScrollView(
                 slivers: [
                   // Top Header & Balance
@@ -36,6 +44,12 @@ class HomeScreen extends StatelessWidget {
 
                   // Learning Path Advisor Card
                   SliverToBoxAdapter(child: _buildLearningAdvisorCard()),
+
+                  // AI Recommendations Section
+                  SliverToBoxAdapter(child: _buildAIRecommendations()),
+
+                  // Smart Tools Grid
+                  SliverToBoxAdapter(child: _buildSmartToolsGrid()),
 
                   // Subject Categories
                   SliverToBoxAdapter(child: _buildSubjectCategories()),
@@ -50,6 +64,7 @@ class HomeScreen extends StatelessWidget {
                         children: [
                           Text(
                             "الكورسات المتاحة",
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                                 fontSize: 18.sp,
                                 fontWeight: FontWeight.bold,
@@ -57,6 +72,7 @@ class HomeScreen extends StatelessWidget {
                           ),
                           Obx(() => Text(
                                 "${_courseController.filteredCourses.length} كورس",
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                     fontSize: 14.sp, color: AppColors.textGrey),
                               )),
@@ -68,9 +84,29 @@ class HomeScreen extends StatelessWidget {
                   // Course List or Loading/Empty State
                   Obx(() {
                     if (_courseController.isLoading.value) {
-                      return const SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: Center(child: CircularProgressIndicator()),
+                      return SliverPadding(
+                        padding: EdgeInsets.symmetric(horizontal: 20.w),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => Skeletonizer(
+                              enabled: true,
+                              child: _buildCourseCard(Course(
+                                id: 'loading',
+                                title: 'Loading Course Name',
+                                instructor: 'Instructor Name',
+                                price: 25000,
+                                rating: 0.0,
+                                subject: 'Subject',
+                                gradeLevel: 'Level',
+                                coverUrl: '',
+                                description: '',
+                                status: 'approved',
+                                lessons: [],
+                              )),
+                            ),
+                            childCount: 3,
+                          ),
+                        ),
                       );
                     }
 
@@ -183,16 +219,40 @@ class HomeScreen extends StatelessWidget {
                         letterSpacing: 0.5),
                   ),
                   SizedBox(height: 5.h),
+                  Obx(() => GestureDetector(
+                        onTap: () => Get.to(() => WalletScreen()),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 5.w),
+                            Obx(() => Countup(
+                                  begin: 0,
+                                  end: _authController.userProfile.value?.walletBalance ?? 0.0,
+                                  duration: const Duration(milliseconds: 1000),
+                                  separator: ',',
+                                  style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold),
+                                )),
+                            Text(
+                              " SYP",
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      )),
+                  SizedBox(height: 10.h),
                   Obx(() => Row(
-                    children: [
-                      const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 20),
-                      SizedBox(width: 5.w),
-                      Text(
-                        "${_authController.currentStreak.value} أيام متتالية",
-                        style: TextStyle(color: Colors.orangeAccent, fontSize: 12.sp, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  )),
+                        children: [
+                          const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 20),
+                          SizedBox(width: 5.w),
+                          Text(
+                            "${_authController.currentStreak.value} أيام متتالية",
+                            style: TextStyle(color: Colors.orangeAccent, fontSize: 12.sp, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      )),
                 ],
               ),
               Row(
@@ -232,6 +292,17 @@ class HomeScreen extends StatelessWidget {
                       icon: const Icon(Icons.leaderboard_rounded,
                           color: Colors.amber),
                       onPressed: () => Get.toNamed('/leaderboard'),
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  Container(
+                    decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle),
+                    child: IconButton(
+                      icon: const Icon(Icons.notifications_none_rounded,
+                          color: Colors.white),
+                      onPressed: () => Get.toNamed('/notification-center'),
                     ),
                   ),
                   SizedBox(width: 8.w),
@@ -363,50 +434,186 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildLearningAdvisorCard() {
-    return FutureBuilder<String>(
-      future: AIService().generateLearningRecommendations([]), // Empty list for now, will be fetched from Supabase
-      builder: (context, snapshot) {
-        return Container(
-          margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 15.h),
-          padding: EdgeInsets.all(20.w),
-          decoration: BoxDecoration(
-            color: AppColors.accentTeal.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.accentTeal.withOpacity(0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return GestureDetector(
+      onTap: () => Get.toNamed('/learning-path'),
+      child: Container(
+        margin: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 0),
+        padding: EdgeInsets.all(20.r),
+        decoration: BoxDecoration(
+          color: AppColors.primaryNavy.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(25.r),
+          border: Border.all(color: AppColors.primaryNavy.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.auto_awesome_rounded, color: AppColors.primaryNavy, size: 30.sp),
+            SizedBox(width: 15.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.psychology_outlined, color: AppColors.accentTeal),
-                  SizedBox(width: 10.w),
-                  Text(
-                    "مستشار المسار التعليمي الذكي",
-                    style: TextStyle(
-                      color: AppColors.accentTeal,
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Text("مستشارك التعليمي الذكي", style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold, fontSize: 16.sp)),
+                  Text("اضغط لعرض مسار تعلمك الشخصي المخصص لك.", style: TextStyle(color: AppColors.textGrey, fontSize: 12.sp)),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, color: AppColors.primaryNavy, size: 16.sp),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAIRecommendations() {
+    return Obx(() {
+      if (_dashboardController.aiRecommendations.isEmpty && !_dashboardController.isAiLoading.value) {
+        return const SizedBox.shrink();
+      }
+
+      return Container(
+        padding: EdgeInsets.fromLTRB(20.w, 25.h, 20.w, 5.h),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome_rounded, color: Colors.amber, size: 20),
+                    SizedBox(width: 8.w),
+                    Text("موصى لك (AI)", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: AppColors.textBlack)),
+                  ],
+                ),
+                if (_dashboardController.isAiLoading.value)
+                  SizedBox(width: 15.r, height: 15.r, child: CircularProgressIndicator(strokeWidth: 2, color: Get.theme.primaryColor)),
+              ],
+            ),
+            SizedBox(height: 15.h),
+            SizedBox(
+              height: 180.h,
+              child: _dashboardController.isAiLoading.value && _dashboardController.aiRecommendations.isEmpty
+                ? _buildRecommendationSkeleton()
+                : ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _dashboardController.aiRecommendations.length,
+                    itemBuilder: (context, index) {
+                      final rec = _dashboardController.aiRecommendations[index];
+                      final course = _courseController.allCourses.firstWhereOrNull((c) => c.id == rec.courseId);
+                      if (course == null) return const SizedBox.shrink();
+                      return _buildRecommendationCard(course, rec.reason);
+                    },
+                  ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildRecommendationSkeleton() {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      itemCount: 2,
+      itemBuilder: (context, index) => Container(
+        width: 280.w,
+        margin: EdgeInsets.only(right: 15.w),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20.r)),
+      ),
+    );
+  }
+
+  Widget _buildRecommendationCard(Course course, String reason) {
+    return GestureDetector(
+      onTap: () => Get.to(() => CourseDetailsScreen(course: course)),
+      child: Container(
+        width: 300.w,
+        margin: EdgeInsets.only(right: 15.w),
+        padding: EdgeInsets.all(12.r),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border.all(color: AppColors.accentTeal.withOpacity(0.1)),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(15.r),
+              child: Image.network(course.coverUrl, width: 80.w, height: 80.w, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.grey[200])),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(course.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp)),
+                  SizedBox(height: 4.h),
+                  Text(reason, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textGrey, fontSize: 11.sp, height: 1.3)),
+                  SizedBox(height: 8.h),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+                    decoration: BoxDecoration(color: AppColors.accentTeal.withOpacity(0.1), borderRadius: BorderRadius.circular(5.r)),
+                    child: Text("ترشيح ذكي", style: TextStyle(color: AppColors.accentTeal, fontSize: 10.sp, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
-              SizedBox(height: 12.h),
-              if (snapshot.connectionState == ConnectionState.waiting)
-                const LinearProgressIndicator(color: AppColors.accentTeal)
-              else
-                Text(
-                  snapshot.data ?? "استمر في التعلم يا بطل!",
-                  style: TextStyle(
-                    color: AppColors.textBlack.withOpacity(0.8),
-                    fontSize: 13.sp,
-                    height: 1.5,
-                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmartToolsGrid() {
+    final List<Map<String, dynamic>> tools = [
+      {'title': 'مراجعة', 'icon': Icons.psychology_rounded, 'route': '/smart-review', 'color': Colors.orange},
+      {'title': 'ملخصات', 'icon': Icons.audio_file_rounded, 'route': '/audio-summaries', 'color': Colors.blue},
+      {'title': 'جلسات', 'icon': Icons.groups_rounded, 'route': '/group-sessions', 'color': Colors.green},
+      {'title': 'تقارير', 'icon': Icons.analytics_rounded, 'route': '/monthly-report', 'color': Colors.purple},
+    ];
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("الأدوات الذكية", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold, color: AppColors.textBlack)),
+          SizedBox(height: 15.h),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisSpacing: 10.w,
+              crossAxisSpacing: 10.w,
+              childAspectRatio: 0.8,
+            ),
+            itemCount: tools.length,
+            itemBuilder: (context, index) {
+              final tool = tools[index];
+              return GestureDetector(
+                onTap: () => Get.toNamed(tool['route']),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12.r),
+                      decoration: BoxDecoration(
+                        color: tool['color'].withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(15.r),
+                      ),
+                      child: Icon(tool['icon'], color: tool['color'], size: 24.sp),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(tool['title'], style: TextStyle(color: AppColors.textBlack, fontSize: 11.sp, fontWeight: FontWeight.w600)),
+                  ],
                 ),
-            ],
+              );
+            },
           ),
-        );
-      }
+        ],
+      ),
     );
   }
 

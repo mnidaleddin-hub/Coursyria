@@ -72,8 +72,8 @@ class _UpdateScreenState extends State<UpdateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false, // Force update
+    return PopScope(
+      canPop: false, // Force update
       child: Scaffold(
         backgroundColor: AppColors.primaryNavy,
         body: Container(

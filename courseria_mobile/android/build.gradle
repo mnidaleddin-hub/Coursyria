@@ -1,64 +1,78 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
-    ext.kotlin_version = '1.8.22'
+    ext.kotlin_version = '2.0.20'
     repositories {
-        // الأولوية للمستودع المحلي الموجود على جهاز المستخدم
-        maven { url 'file:///D:/Different_Files/offline-gmaven-stable/gmaven_stable' }
         google()
         mavenCentral()
-        gradlePluginPortal()
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:7.3.0"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.google.gms:google-services:4.4.2'
     }
 }
 
 allprojects {
     repositories {
-        // الأولوية للمستودع المحلي الموجود على جهاز المستخدم
-        maven { url 'file:///D:/Different_Files/offline-gmaven-stable/gmaven_stable' }
+        flatDir { dirs 'd:/Coursyria/local_maven' }
         google()
         mavenCentral()
-        maven { url 'https://repo.huaweicloud.com/repository/google' }
-        maven { url 'https://repo.huaweicloud.com/repository/maven' }
         maven { url 'https://maven.aliyun.com/repository/google' }
         maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/jcenter' }
     }
 }
 
-rootProject.buildDir = "../build"
 subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
-
-    // حقن كائن flutter وهمي للمشاريع الفرعية (الإضافات) التي تحتاجه
-    if (project.name != "app") {
-        project.ext.flutter = [
-            compileSdkVersion: 34,
-            minSdkVersion: 21,
-            targetSdkVersion: 34
-        ]
-    }
-
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
             project.android {
-                // فرض الإصدار 34 دائماً لتجنب تعارضات المكتبات مع SDK 35
-                compileSdkVersion 34
-                buildToolsVersion "34.0.0"
-
-                defaultConfig {
-                    minSdkVersion 21
-                    targetSdkVersion 34
+                if (namespace == null) {
+                    try {
+                        def manifestFile = project.file('src/main/AndroidManifest.xml')
+                        if (manifestFile.exists()) {
+                            def manifest = new groovy.xml.XmlParser().parse(manifestFile)
+                            def packageName = manifest.'@package'
+                            if (packageName) {
+                                namespace packageName
+                            } else {
+                                namespace project.group ?: "com.example.${project.name.replaceAll('-', '_')}"
+                            }
+                        } else {
+                            namespace project.group ?: "com.example.${project.name.replaceAll('-', '_')}"
+                        }
+                    } catch (Exception e) {
+                        namespace project.group ?: "com.example.${project.name.replaceAll('-', '_')}"
+                    }
+                }
+                if (project.name != 'app') {
+                    compileSdk 34
+                    buildToolsVersion "34.0.0"
                 }
             }
+            
+            // Fix for legacy plugins missing flutter extension inside android block
+            if (!project.android.hasProperty('flutter')) {
+                project.android.ext.flutter = [
+                    compileSdkVersion: 34,
+                    minSdkVersion: 21,
+                    targetSdkVersion: 34,
+                ]
+            }
+        }
+        
+        // Fix for legacy plugins missing flutter extension at project level
+        if (!project.hasProperty('flutter')) {
+            project.ext.flutter = [
+                compileSdkVersion: 34,
+                minSdkVersion: 21,
+                targetSdkVersion: 34,
+            ]
         }
     }
 }
 
+rootProject.buildDir = '../build'
 subprojects {
-    project.evaluationDependsOn(":app")
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
 
 tasks.register("clean", Delete) {

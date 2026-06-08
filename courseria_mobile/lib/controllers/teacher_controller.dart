@@ -11,16 +11,6 @@ import 'course_controller.dart';
 
 class TeacherController extends GetxController {
   final SupabaseClient _supabase = Supabase.instance.client;
-  var courseStats = <String, dynamic>{}.obs;
-
-  Future<void> fetchTeacherAnalytics(String teacherId) async {
-    try {
-      final response = await _supabase.rpc('get_teacher_analytics', params: {'teacher_id_param': teacherId});
-      courseStats.value = response ?? {};
-    } catch (e) {
-      debugPrint("Error fetching analytics: $e");
-    }
-  }
   final AuthController _authController = Get.find<AuthController>();
   final CourseController _courseController = Get.find<CourseController>();
 
@@ -28,54 +18,235 @@ class TeacherController extends GetxController {
   var uploadProgress = 0.0.obs;
   var selectedFile = Rxn<File>();
   var selectedCourseId = "".obs;
+  
+  // Stats
+  var teacherStats = {
+    'student_count': 0,
+    'course_count': 0,
+    'sales_count': 0,
+    'total_earnings': 0.0,
+  }.obs;
 
-  // Course Request Logic
-  Future<void> requestNewCourse({
+  var teacherCourses = <Course>[].obs;
+  var teacherComments = <Map<String, dynamic>>[].obs;
+  var isCommentsLoading = false.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    if (_authController.userData['role'] == 'teacher') {
+      refreshDashboard();
+    }
+  }
+
+  Future<void> refreshDashboard() async {
+    final teacherId = _authController.userData['id'];
+    if (teacherId == null) return;
+    
+    await Future.wait([
+      fetchTeacherStats(teacherId),
+      fetchTeacherCourses(teacherId),
+    ]);
+  }
+
+  Future<void> fetchTeacherStats(String teacherId) async {
+    try {
+      // In a real app, you might use an RPC or multiple queries
+      // For now, let's simulate with some logic or direct queries if tables allow
+      final coursesResponse = await _supabase
+          .from('courses')
+          .select('id, price')
+          .eq('teacher_id', teacherId);
+      
+      final courseIds = (coursesResponse as List).map((c) => c['id']).toList();
+      
+      int salesCount = 0;
+      double totalEarnings = 0.0;
+      int studentCount = 0;
+
+      if (courseIds.isNotEmpty) {
+        // This assumes a 'user_courses' or 'subscriptions' table exists
+        final salesResponse = await _supabase
+            .from('user_courses')
+            .select('course_id')
+            .inFilter('course_id', courseIds);
+        
+        salesCount = (salesResponse as List).length;
+        
+        // Calculate earnings (simplified: sum of prices for each sale)
+        for (var sale in salesResponse) {
+          final course = (coursesResponse as List).firstWhere((c) => c['id'] == sale['course_id']);
+          totalEarnings += (course['price'] ?? 0).toDouble();
+        }
+
+        // Distinct students
+        final studentsResponse = await _supabase
+            .from('user_courses')
+            .select('user_id')
+            .inFilter('course_id', courseIds);
+        
+        final distinctStudents = (studentsResponse as List).map((s) => s['user_id']).toSet();
+        studentCount = distinctStudents.length;
+      }
+
+      teacherStats.value = {
+        'student_count': studentCount,
+        'course_count': (coursesResponse as List).length,
+        'sales_count': salesCount,
+        'total_earnings': totalEarnings,
+      };
+    } catch (e) {
+      debugPrint("Error fetching teacher stats: $e");
+    }
+  }
+
+  Future<void> requestNewCourse(Map<String, dynamic> data) async {
+    isLoading.value = true;
+    try {
+      await _supabase.from('courses').insert({
+        ...data,
+        'teacher_id': _authController.userData['id'],
+        'status': 'pending',
+      });
+      Get.back();
+      Get.snackbar("نجاح", "تم إرسال طلب إنشاء الكورس للمراجعة.");
+      refreshDashboard();
+    } catch (e) {
+      debugPrint("Error requesting new course: $e");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> deleteCourse(String courseId) async {
+    try {
+      await _supabase.from('courses').delete().eq('id', courseId);
+      Get.snackbar("نجاح", "تم حذف الكورس بنجاح.");
+      refreshDashboard();
+    } catch (e) {
+      debugPrint("Error deleting course: $e");
+    }
+  }
+
+  Future<void> deleteLesson(String lessonId) async {
+    try {
+      await _supabase.from('lessons').delete().eq('id', lessonId);
+      Get.snackbar("نجاح", "تم حذف الدرس بنجاح.");
+    } catch (e) {
+      debugPrint("Error deleting lesson: $e");
+    }
+  }
+
+  Future<void> updateLessonOrder(String courseId, List<Lesson> lessons) async {
+    try {
+      for (int i = 0; i < lessons.length; i++) {
+        await _supabase.from('lessons').update({'order_index': i}).eq('id', lessons[i].id);
+      }
+      Get.snackbar("نجاح", "تم تحديث ترتيب الدروس.");
+    } catch (e) {
+      debugPrint("Error updating lesson order: $e");
+    }
+  }
+
+  Future<void> renameLesson(String lessonId, String newTitle) async {
+    try {
+      await _supabase.from('lessons').update({'title': newTitle}).eq('id', lessonId);
+      Get.snackbar("نجاح", "تم تغيير اسم الدرس.");
+    } catch (e) {
+      debugPrint("Error renaming lesson: $e");
+    }
+  }
+
+  Future<void> fetchTeacherComments() async {
+    isCommentsLoading.value = true;
+    try {
+      // Simplified: fetch comments for teacher's courses
+      final teacherId = _authController.userData['id'];
+      final response = await _supabase
+          .from('comments')
+          .select('*, lessons(title, course_id)')
+          .eq('lessons.teacher_id', teacherId);
+      
+      teacherComments.assignAll(List<Map<String, dynamic>>.from(response));
+    } catch (e) {
+      debugPrint("Error fetching teacher comments: $e");
+    } finally {
+      isCommentsLoading.value = false;
+    }
+  }
+
+  Future<void> replyToComment(String commentId, String replyText) async {
+    try {
+      // Simplified: Add a reply comment
+      await _supabase.from('comments').insert({
+        'content': replyText,
+        'parent_id': commentId,
+        'user_id': _authController.userData['id'],
+      });
+      Get.snackbar("نجاح", "تم إرسال الرد.");
+      fetchTeacherComments();
+    } catch (e) {
+      debugPrint("Error replying to comment: $e");
+    }
+  }
+
+  Future<void> fetchTeacherCourses(String teacherId) async {
+    try {
+      final response = await _supabase
+          .from('courses')
+          .select('*, lessons(*)')
+          .eq('teacher_id', teacherId)
+          .order('created_at', ascending: false);
+
+      teacherCourses.assignAll((response as List).map((e) => Course.fromJson(e)).toList());
+    } catch (e) {
+      debugPrint("Error fetching teacher courses: $e");
+    }
+  }
+
+  Future<void> createCourse({
     required String title,
     required String subject,
     required String gradeLevel,
     required double price,
-    String? description,
-    String? generalNotes,
+    required String description,
+    File? imageFile,
   }) async {
     try {
       isLoading.value = true;
       final userId = _authController.userData['id'];
+
+      String? coverUrl;
+      if (imageFile != null) {
+        final fileName = "${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}";
+        await _supabase.storage.from('course-covers').upload(fileName, imageFile);
+        coverUrl = _supabase.storage.from('course-covers').getPublicUrl(fileName);
+      }
 
       await _supabase.from('courses').insert({
         'title': title,
         'subject': subject,
         'grade_level': gradeLevel,
         'price': price,
-        'description': description ?? "",
-        'general_notes': generalNotes,
+        'description': description,
         'teacher_id': userId,
         'instructor': _authController.userData['name'] ?? "أستاذ متميز",
-        'status': 'pending', // Explicitly setting pending
-        'rating': 0.0,
-        'cover_url': "", // Default or teacher can upload later
+        'cover_url': coverUrl ?? "",
+        'status': 'approved', // Auto-approved for now as per teacher request
       });
 
-      Get.snackbar("تم الإرسال", "تم إرسال طلب إنشاء الكورس للإدارة",
-          backgroundColor: AppColors.accentTeal, colorText: Colors.white);
-      _courseController.fetchCoursesFromApi(); // Refresh to show in pending section
+      Get.snackbar("نجاح", "تم إنشاء الكورس بنجاح", backgroundColor: AppColors.accentTeal, colorText: Colors.white);
+      refreshDashboard();
+      Get.back();
     } catch (e) {
-      Get.snackbar("خطأ", "فشل إرسال الطلب: $e",
-          backgroundColor: const Color(0xFFE63946), colorText: Colors.white);
+      Get.snackbar("خطأ", "فشل إنشاء الكورس: $e", backgroundColor: Colors.redAccent, colorText: Colors.white);
     } finally {
       isLoading.value = false;
     }
   }
 
   Future<void> pickVideo() async {
-    if (kIsWeb) {
-      Get.snackbar("تنبيه", "تحميل الملفات عبر المتصفح يحتاج إعدادات إضافية");
-      return;
-    }
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.video,
-    );
-
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.video);
     if (result != null) {
       selectedFile.value = File(result.files.single.path!);
     }
@@ -87,153 +258,34 @@ class TeacherController extends GetxController {
     required String courseId,
   }) async {
     if (selectedFile.value == null) {
-      Get.snackbar("خطأ", "يرجى اختيار ملف فيديو أولاً");
+      Get.snackbar("خطأ", "يرجى اختيار ملف فيديو");
       return;
     }
 
     try {
       isLoading.value = true;
-      uploadProgress.value = 0.0;
-
       final file = selectedFile.value!;
       final fileName = "${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}";
-      final filePath = "lessons/$fileName";
-
-      // 1. Upload to Supabase Storage with real progress
-      await _supabase.storage.from('course-videos').upload(
-            filePath,
-            file,
-            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
-          );
       
-      // Since supabase_flutter upload doesn't support progress callback yet,
-      // we simulate a smooth progress after the upload starts, 
-      // but in a production environment with larger files, 
-      // one might use a custom tus client or similar.
-      // For now, let's at least ensure the bucket is correct.
+      await _supabase.storage.from('course-videos').upload(fileName, file);
+      final videoUrl = _supabase.storage.from('course-videos').getPublicUrl(fileName);
 
-      uploadProgress.value = 1.0;
-
-      // 2. Get Public URL (We'll use signed URLs at runtime for viewing)
-      final String videoUrl = _supabase.storage.from('course-videos').getPublicUrl(filePath);
-
-      // 3. Save to Database
       await _supabase.from('lessons').insert({
         'course_id': courseId,
         'title': title,
         'description': description,
         'video_url': videoUrl,
         'teacher_id': _authController.userData['id'],
-        'instructor_id': _authController.userData['id'],
-        'is_free': false,
-        'views_count': 0,
-        'likes_count': 0,
       });
 
-      Get.snackbar("نجاح", "تم رفع الدرس بنجاح", 
-          backgroundColor: AppColors.accentTeal, colorText: Colors.white);
-      _courseController.fetchCoursesFromApi();
+      Get.snackbar("نجاح", "تم رفع الدرس بنجاح", backgroundColor: AppColors.accentTeal, colorText: Colors.white);
+      refreshDashboard();
       Get.back();
     } catch (e) {
-      print("Upload error: $e");
-      Get.snackbar("خطأ", "فشل رفع الدرس: $e", 
-          backgroundColor: Colors.redAccent, colorText: Colors.white);
+      Get.snackbar("خطأ", "فشل رفع الدرس: $e", backgroundColor: Colors.redAccent, colorText: Colors.white);
     } finally {
       isLoading.value = false;
-      uploadProgress.value = 0.0;
       selectedFile.value = null;
-    }
-  }
-
-  // --- Phase 4: Teacher Management ---
-  Future<void> deleteCourse(String courseId) async {
-    try {
-      isLoading.value = true;
-      // 1. Delete from database (Cascade deletes should handle progression if configured)
-      await _supabase.from('courses').delete().eq('id', courseId);
-      
-      Get.snackbar("تم الحذف", "تم حذف الكورس بنجاح", backgroundColor: Colors.redAccent, colorText: Colors.white);
-      _courseController.fetchCoursesFromApi();
-      Get.back();
-    } catch (e) {
-      Get.snackbar("خطأ", "فشل حذف الكورس: $e");
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  Future<void> deleteLesson(String lessonId) async {
-    try {
-      isLoading.value = true;
-      await _supabase.from('lessons').delete().eq('id', lessonId);
-      
-      Get.snackbar("تم الحذف", "تم حذف الفيديو بنجاح", backgroundColor: Colors.redAccent, colorText: Colors.white);
-      _courseController.fetchCoursesFromApi();
-    } catch (e) {
-      Get.snackbar("خطأ", "فشل حذف الفيديو: $e");
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  Future<void> renameLesson(String lessonId, String newTitle) async {
-    try {
-      await _supabase.from('lessons').update({'title': newTitle}).eq('id', lessonId);
-      Get.snackbar("تم التحديث", "تم تغيير اسم الدرس بنجاح", backgroundColor: AppColors.accentTeal, colorText: Colors.white);
-      _courseController.fetchCoursesFromApi();
-    } catch (e) {
-      Get.snackbar("خطأ", "فشل تحديث الاسم: $e");
-    }
-  }
-
-  Future<void> updateLessonOrder(String courseId, List<Lesson> lessons) async {
-    try {
-      for (int i = 0; i < lessons.length; i++) {
-        await _supabase.from('lessons').update({'sort_order': i}).eq('id', lessons[i].id);
-      }
-    } catch (e) {
-      print("Error updating lesson order: $e");
-    }
-  }
-
-  // --- Phase 5: Comments Management for Teachers ---
-  var teacherComments = <Map<String, dynamic>>[].obs;
-  var isCommentsLoading = false.obs;
-
-  Future<void> fetchTeacherComments() async {
-    try {
-      isCommentsLoading.value = true;
-      final userId = _authController.userData['id'];
-
-      // Fetch comments for lessons belonging to this teacher's courses
-      // We can use a join or filter by teacher_id in lessons
-      final response = await _supabase
-          .from('comments')
-          .select('*, profiles:user_id(full_name), lessons!inner(title, teacher_id)')
-          .eq('lessons.teacher_id', userId)
-          .order('created_at', ascending: false);
-
-      teacherComments.assignAll(List<Map<String, dynamic>>.from(response));
-    } catch (e) {
-      debugPrint("Error fetching teacher comments: $e");
-    } finally {
-      isCommentsLoading.value = false;
-    }
-  }
-
-  Future<void> replyToComment(String commentId, String replyText) async {
-    try {
-      // In a real scenario, we might have a 'replies' table or update the comment
-      // For now, let's assume we update the 'reply' column in the comments table
-      await _supabase.from('comments').update({
-        'teacher_reply': replyText,
-        'replied_at': DateTime.now().toIso8601String(),
-      }).eq('id', commentId);
-      
-      Get.snackbar("تم الرد", "تم إرسال ردك بنجاح", backgroundColor: AppColors.accentTeal, colorText: Colors.white);
-      fetchTeacherComments(); // Refresh
-    } catch (e) {
-      Get.snackbar("خطأ", "فشل إرسال الرد: $e");
     }
   }
 }

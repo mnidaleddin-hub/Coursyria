@@ -412,6 +412,7 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
         token_instance = settings.WA_TOKEN_INSTANCE
         # GREEN API FIX: Use phone_number without '+' followed by @c.us
         chat_id = clean_number_for_api.replace('+', '') + "@c.us"
+        logger.info(f"WhatsApp Chat ID: {chat_id}")
     else:
         # Telegram via Green API or Direct (Assuming Green API based on config)
         api_url = settings.TG_API_URL
@@ -451,31 +452,36 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
 
     async with httpx.AsyncClient() as client:
         try:
-            # Implement simple retry logic (1 retry after 3 seconds)
-            for attempt in range(2):
-                response = await client.post(
-                    endpoint,
-                    json={
-                        "chatId": chat_id,
-                        "message": message_text
-                    },
-                    timeout=20.0
-                )
-                
-                logger.info(f"Attempt {attempt+1} - Status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    logger.info(f"Message sent successfully: {response.text}")
-                    return {"status": "success", "message": "تم إرسال رمز التحقق بنجاح"}
-                
-                logger.error(f"Attempt {attempt+1} failed: {response.text}")
-                if attempt == 0:
-                    logger.info("Retrying in 3 seconds...")
-                    await asyncio.sleep(3)
+            # Implement exponential backoff retry mechanism (3 attempts)
+            for attempt in range(3):
+                try:
+                    response = await client.post(
+                        endpoint,
+                        json={
+                            "chatId": chat_id,
+                            "message": message_text
+                        },
+                        timeout=25.0
+                    )
+                    
+                    logger.info(f"Attempt {attempt+1} - Status: {response.status_code}")
+                    
+                    if response.status_code == 200:
+                        logger.info(f"Message sent successfully: {response.text}")
+                        return {"status": "success", "message": "تم إرسال رمز التحقق بنجاح"}
+                    
+                    logger.error(f"Attempt {attempt+1} failed: {response.text}")
+                except (httpx.TimeoutException, httpx.RequestError) as e:
+                    logger.warning(f"Attempt {attempt+1} network error: {e}")
+
+                if attempt < 2:
+                    wait_time = (attempt + 1) * 3
+                    logger.info(f"Retrying in {wait_time} seconds...")
+                    await asyncio.sleep(wait_time)
             
             raise HTTPException(
                 status_code=502, 
-                detail=f"فشل إرسال الرمز عبر {channel}. يرجى التأكد من أن الرقم مسجل في الخدمة."
+                detail=f"فشل إرسال الرمز عبر {channel} بعد 3 محاولات. يرجى التأكد من أن الرقم مسجل في الخدمة."
             )
             
         except httpx.TimeoutException:

@@ -1,0 +1,43 @@
+{
+  "project_info": {
+    "project_number": "102054157259",
+    "firebase_url": "https://coursyria.firebaseio.com",
+    "project_id": "coursyria",
+    "storage_bucket": "coursyria.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:102054157259:android:2368b5e2fe7603f6d1f44e",
+        "android_client_info": {
+          "package_name": "com.example.courseria_mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "102054157259-xxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+          "client_type": 3,
+          "android_info": {
+            "package_name": "com.example.courseria_mobile",
+            "certificate_hash": "f2537f0beb27267d27041b29f80947fe5d2bc3"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [],
+          "primary_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

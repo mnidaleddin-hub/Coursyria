@@ -2,12 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/ai_service.dart';
-import 'auth_controller.dart';
 
 class SupportChatController extends GetxController {
   final AIService _aiService = AIService();
   final SupabaseClient _supabase = Supabase.instance.client;
-  final AuthController _authController = Get.find<AuthController>();
 
   var messages = <Map<String, String>>[].obs;
   var isLoading = false.obs;
@@ -55,7 +53,7 @@ class SupportChatController extends GetxController {
         });
       }
     } catch (e) {
-      print("Error initializing ticket: $e");
+      debugPrint("Error initializing ticket: $e");
     }
   }
 
@@ -114,7 +112,7 @@ class SupportChatController extends GetxController {
         'sender_id': _supabase.auth.currentUser?.id,
       });
     } catch (e) {
-      print("Error saving message: $e");
+      debugPrint("Error saving message: $e");
     }
   }
 
@@ -137,7 +135,7 @@ class SupportChatController extends GetxController {
           snackPosition: SnackPosition.TOP);
     } catch (e) {
       isLoading.value = false;
-      print("Error escalating ticket: $e");
+      debugPrint("Error escalating ticket: $e");
     }
   }
 }

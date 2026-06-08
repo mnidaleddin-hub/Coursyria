@@ -3,145 +3,234 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/quiz_model.dart';
+import '../models/quiz_question_model.dart';
+import '../models/quiz_result_model.dart';
+import '../services/analytics_service.dart';
 import '../services/ai_service.dart';
 import 'auth_controller.dart';
 import '../core/constants/constants.dart';
-import '../services/certificate_service.dart';
 
 class QuizController extends GetxController {
-  final AIService _aiService = AIService();
   final SupabaseClient _supabase = Supabase.instance.client;
   final AuthController _authController = Get.find<AuthController>();
 
-  var questions = <QuizQuestion>[].obs;
-  var currentIndex = 0.obs;
+  var quizzes = <Quiz>[].obs;
+  var currentQuizQuestions = <QuizQuestion>[].obs;
+  var quizResults = <String, QuizResult>{}.obs; // quizId -> result
   var isLoading = false.obs;
-  var selectedIndex = (-1).obs;
-  var isAnswered = false.obs;
-  var correctAnswers = 0.obs;
-  var timerSeconds = 30.obs;
-  Timer? _timer;
 
-  // Quiz Type: 'lesson' or 'final'
-  String quizType = 'lesson';
-  String topic = '';
-  String? courseId;
-  String? lessonId;
+  // State for active quiz
+  var currentQuestionIndex = 0.obs;
+  var userAnswers = <String, String>{}.obs; // questionId -> answerText
+  var timerSeconds = 0.obs;
+  Timer? _quizTimer;
 
-  Future<void> startQuiz({
+  /// Fetches all quizzes for a specific course.
+  Future<void> fetchQuizzesForCourse(String courseId) async {
+    isLoading.value = true;
+    try {
+      final response = await _supabase
+          .from('quizzes')
+          .select()
+          .eq('course_id', courseId)
+          .eq('is_published', true);
+
+      quizzes.assignAll((response as List).map((e) => Quiz.fromJson(e)).toList());
+      
+      // Also fetch results for these quizzes for the current user
+      await fetchUserResultsForQuizzes(quizzes.map((q) => q.id).toList());
+    } catch (e) {
+      debugPrint("Error fetching quizzes: $e");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Fetches questions for a specific quiz.
+  Future<void> fetchQuizQuestions(String quizId) async {
+    isLoading.value = true;
+    try {
+      final response = await _supabase
+          .from('quiz_questions')
+          .select()
+          .eq('quiz_id', quizId)
+          .order('order_index', ascending: true);
+
+      currentQuizQuestions.assignAll((response as List).map((e) => QuizQuestion.fromJson(e)).toList());
+    } catch (e) {
+      debugPrint("Error fetching quiz questions: $e");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Loads questions from an AI-generated source.
+  void loadAIQuestions(List<QuizQuestion> questions) {
+    currentQuizQuestions.assignAll(questions);
+  }
+
+  Future<void> generateAndStartAIQuiz({
     required String type,
     required String topicName,
-    String? cId,
-    String? lId,
-    String? contentContext,
+    String? lessonId,
   }) async {
+    isLoading.value = true;
     try {
-      isLoading.value = true;
-      quizType = type;
-      topic = topicName;
-      courseId = cId;
-      lessonId = lId;
-      currentIndex.value = 0;
-      correctAnswers.value = 0;
-      isAnswered.value = false;
-      selectedIndex.value = -1;
-
-      int count = type == 'final' ? 20 : 5;
-      questions.value = await _aiService.generateQuiz(
+      final aiService = Get.find<AIService>();
+      final questions = await aiService.generateQuiz(
         topic: topicName,
-        questionCount: count,
-        context: contentContext,
+        questionCount: 5,
+        context: "اختبار سريع لدرس $topicName",
+      );
+      
+      currentQuizQuestions.assignAll(questions);
+      
+      final tempQuiz = Quiz(
+        id: 'ai_temp_${DateTime.now().millisecondsSinceEpoch}',
+        title: "اختبار ذكي: $topicName",
+        description: "اختبار مولد تلقائياً بواسطة الذكاء الاصطناعي",
+        passingScore: 60,
+        questionsCount: questions.length,
+        isPublished: true,
+        createdAt: DateTime.now(),
       );
 
-      isLoading.value = false;
-      _startTimer();
+      Get.toNamed('/quiz', arguments: {'quiz': tempQuiz});
     } catch (e) {
-      isLoading.value = false;
+      debugPrint("Error generating AI quiz: $e");
       Get.snackbar("خطأ", "فشل توليد الاختبار الذكي: $e",
           backgroundColor: AppColors.errorRed, colorText: Colors.white);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Starts the quiz session.
+  void startQuizSession(Quiz quiz) {
+    currentQuestionIndex.value = 0;
+    userAnswers.clear();
+    if (quiz.timeLimit != null) {
+      timerSeconds.value = quiz.timeLimit! * 60;
+      _startTimer();
+    } else {
+      timerSeconds.value = 0;
     }
   }
 
   void _startTimer() {
-    _timer?.cancel();
-    timerSeconds.value = 30;
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _quizTimer?.cancel();
+    _quizTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (timerSeconds.value > 0) {
         timerSeconds.value--;
       } else {
-        submitAnswer(-1); // Timeout
+        _quizTimer?.cancel();
+        submitQuiz(currentQuizQuestions.first.quizId); // Auto-submit on timeout
       }
     });
   }
 
-  void submitAnswer(int index) {
-    if (isAnswered.value) return;
-    
-    _timer?.cancel();
-    selectedIndex.value = index;
-    isAnswered.value = true;
-
-    if (index == questions[currentIndex.value].correctIndex) {
-      correctAnswers.value++;
-      // Haptic feedback or sound could be triggered here
-    }
+  /// Saves a temporary answer.
+  void saveAnswer(String questionId, String answer) {
+    userAnswers[questionId] = answer;
   }
 
-  void nextQuestion() {
-    if (currentIndex.value < questions.length - 1) {
-      currentIndex.value++;
-      selectedIndex.value = -1;
-      isAnswered.value = false;
-      _startTimer();
-    } else {
-      _finishQuiz();
-    }
-  }
-
-  Future<void> _finishQuiz() async {
+  /// Calculates the score and submits the quiz.
+  Future<void> submitQuiz(String quizId) async {
+    _quizTimer?.cancel();
+    isLoading.value = true;
     try {
-      double percentage = (correctAnswers.value / questions.length) * 100;
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
 
-      // 1. Save result to Supabase
-      await _supabase.from('student_quizzes').insert({
-        'user_id': userId,
-        'course_id': courseId,
-        'lesson_id': lessonId,
-        'type': quizType,
-        'score': correctAnswers.value,
-        'total_questions': questions.length,
-        'percentage': percentage,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      int score = 0;
+      int totalPoints = 0;
 
-      // 2. Reward points if score > 75%
-      if (percentage >= 75) {
-        await _authController.addPoints(100);
-        Get.snackbar("بطل! 🏆", "لقد حصلت على 100 نقطة إضافية لتفوقك في الاختبار!",
+      for (var question in currentQuizQuestions) {
+        totalPoints += question.points;
+        if (userAnswers[question.id] == question.correctAnswer) {
+          score += question.points;
+        }
+      }
+
+      final double percentage = (score / totalPoints) * 100;
+      
+      // Handle AI Temp Quizzes (don't save to DB quiz_results to avoid FK errors)
+      if (quizId.startsWith('ai_temp_')) {
+        final result = QuizResult(
+          id: "res_${quizId}",
+          userId: userId,
+          quizId: quizId,
+          score: score,
+          totalPoints: totalPoints,
+          percentage: percentage,
+          isPassed: percentage >= 60,
+          timeSpent: 0,
+          completedAt: DateTime.now(),
+        );
+        Get.offNamed('/quiz-result', arguments: result);
+        return;
+      }
+
+      final quiz = quizzes.firstWhere((q) => q.id == quizId);
+      final bool isPassed = percentage >= quiz.passingScore;
+
+      final resultData = {
+        'user_id': userId,
+        'quiz_id': quizId,
+        'score': score,
+        'total_points': totalPoints,
+        'percentage': percentage,
+        'is_passed': isPassed,
+        'time_spent': quiz.timeLimit != null ? (quiz.timeLimit! * 60 - timerSeconds.value) : 0,
+        'completed_at': DateTime.now().toIso8601String(),
+      };
+
+      final response = await _supabase.from('quiz_results').insert(resultData).select().single();
+      final QuizResult result = QuizResult.fromJson(response);
+      quizResults[quizId] = result;
+      AnalyticsService.logQuizCompletion(quizId, score, isPassed);
+
+      // Reward points if passed
+      if (isPassed) {
+        await _authController.addPoints(50); // Base reward points
+        Get.snackbar("بطل! 🏆", "لقد اجتزت الاختبار وحصلت على 50 نقطة إضافية!",
             backgroundColor: AppColors.accentTeal, colorText: Colors.white);
       }
 
-      // 3. Trigger Certificate if Final Quiz Passed
-      if (quizType == 'final' && percentage >= 75) {
-        // We might need course title and teacher name here
-        // For now, assuming they are available or fetched
-        CertificateService.generateAndShare(
-          studentName: _authController.userData['name'] ?? "طالب متميز",
-          courseName: topic,
-          teacherName: "مدرس كورسيريا", // Placeholder or fetch real
-        );
-      }
-
+      Get.offNamed('/quiz-result', arguments: result);
     } catch (e) {
-      debugPrint("Error saving quiz result: $e");
+      debugPrint("Error submitting quiz: $e");
+      Get.snackbar("خطأ", "فشل تسليم الاختبار: $e",
+          backgroundColor: AppColors.errorRed, colorText: Colors.white);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Fetches previous results for a list of quizzes.
+  Future<void> fetchUserResultsForQuizzes(List<String> quizIds) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null || quizIds.isEmpty) return;
+
+    try {
+      final response = await _supabase
+          .from('quiz_results')
+          .select()
+          .eq('user_id', userId)
+          .inFilter('quiz_id', quizIds);
+
+      for (var item in (response as List)) {
+        final result = QuizResult.fromJson(item);
+        quizResults[result.quizId] = result;
+      }
+    } catch (e) {
+      debugPrint("Error fetching user results: $e");
     }
   }
 
   @override
   void onClose() {
-    _timer?.cancel();
+    _quizTimer?.cancel();
     super.onClose();
   }
 }

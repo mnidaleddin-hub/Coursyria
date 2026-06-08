@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -5,9 +6,11 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/constants/constants.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SystemController extends GetxController {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final _secureStorage = Get.find<FlutterSecureStorage>();
   
   var isCheckingUpdate = false.obs;
   var updateProgress = 0.0.obs;
@@ -18,12 +21,70 @@ class SystemController extends GetxController {
   var useTestServer = false.obs;
   var selectedThemeColor = AppColors.accentTeal.obs;
   var offlinePreference = 'high_quality'.obs; // 'high_quality', 'data_saver'
-  var selectedAIModel = AIModel.gemini2_5_flash_lite.obs; // Default to Lite
+  var selectedAIModel = AIModel.gemini25FlashLite.obs; // Default to Lite
+  var isBlueLightFilterEnabled = false.obs;
+  var isGlobalLoading = false.obs;
+  var loadingProgress = 0.0.obs;
+
+  // Strategic Deployment Flag
+  var isOfflineMode = false.obs; // Force mock data for all new screens
+
+  Future<void> sendWhatsAppOTP(String phoneNumber, String otp) async {
+    final chatId = "${phoneNumber.replaceAll('+', '')}@c.us";
+    
+    final payload = {
+      "chatId": chatId,
+      "message": "رمز التحقق الخاص بك في كورسيريا هو: $otp"
+    };
+
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        final response = await _supabase.functions.invoke('send-whatsapp', body: payload);
+        debugPrint("[GREEN-API] Attempt ${attempt + 1}: ${response.status}");
+        if (response.status == 200) break;
+      } catch (e) {
+        debugPrint("[GREEN-API] Attempt ${attempt + 1} failed: $e");
+        await Future.delayed(Duration(seconds: math.pow(2, attempt).toInt()));
+      }
+    }
+  }
+
+  bool isValidUuid(String id) {
+    return RegExp(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+            caseSensitive: false)
+        .hasMatch(id);
+  }
 
   @override
   void onInit() {
     super.onInit();
+    _loadOfflineFlag();
     _loadPreferences();
+  }
+
+  Future<void> _loadOfflineFlag() async {
+    final flag = await _secureStorage.read(key: 'is_offline_mode');
+    if (flag != null) {
+      isOfflineMode.value = flag == 'true';
+    }
+  }
+
+  void toggleOfflineMode(bool val) {
+    isOfflineMode.value = val;
+    _secureStorage.write(key: 'is_offline_mode', value: val.toString());
+    Get.snackbar("وضع النظام", val ? "تم تفعيل وضع التجربة (بدون إنترنت)" : "تم تفعيل وضع الاتصال المباشر",
+        backgroundColor: AppColors.accentTeal, colorText: Colors.white);
+  }
+
+  void setGlobalLoading(bool loading, {double? progress}) {
+    isGlobalLoading.value = loading;
+    if (progress != null) loadingProgress.value = progress;
+  }
+
+  void toggleBlueLightFilter(bool val) {
+    isBlueLightFilterEnabled.value = val;
+    // storage.write('blue_light_filter', val);
   }
 
   @override
@@ -123,8 +184,8 @@ class SystemController extends GetxController {
     required String patchUrl,
   }) {
     Get.dialog(
-      WillPopScope(
-        onWillPop: () async => !isMajor, // Prevent closing if forced
+      PopScope(
+        canPop: !isMajor, // Prevent closing if forced
         child: AlertDialog(
           backgroundColor: AppColors.secondaryNavy,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

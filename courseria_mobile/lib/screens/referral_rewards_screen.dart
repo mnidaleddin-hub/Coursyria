@@ -4,7 +4,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../controllers/auth_controller.dart';
 import '../core/constants/constants.dart';
 
 class ReferralRewardsScreen extends StatefulWidget {
@@ -15,7 +14,6 @@ class ReferralRewardsScreen extends StatefulWidget {
 }
 
 class _ReferralRewardsScreenState extends State<ReferralRewardsScreen> {
-  final AuthController _authController = Get.find<AuthController>();
   final SupabaseClient _supabase = Supabase.instance.client;
   String _referralCode = "جاري التحميل...";
   int _referralCount = 0;

@@ -1,31 +1,55 @@
-class QuizQuestion {
-  final String question;
-  final List<String> options;
-  final int correctIndex;
-  final String explanation;
+class Quiz {
+  final String id;
+  final String? courseId;
+  final String? lessonId;
+  final String title;
+  final String description;
+  final int? timeLimit; // In minutes
+  final int passingScore;
+  final int questionsCount;
+  final bool isPublished;
+  final DateTime createdAt;
 
-  QuizQuestion({
-    required this.question,
-    required this.options,
-    required this.correctIndex,
-    required this.explanation,
+  Quiz({
+    required this.id,
+    this.courseId,
+    this.lessonId,
+    required this.title,
+    required this.description,
+    this.timeLimit,
+    required this.passingScore,
+    required this.questionsCount,
+    required this.isPublished,
+    required this.createdAt,
   });
 
-  factory QuizQuestion.fromJson(Map<String, dynamic> json) {
-    return QuizQuestion(
-      question: json['question'] ?? "",
-      options: List<String>.from(json['options'] ?? []),
-      correctIndex: json['correct_index'] ?? 0,
-      explanation: json['explanation'] ?? "",
+  factory Quiz.fromJson(Map<String, dynamic> json) {
+    return Quiz(
+      id: json['id'],
+      courseId: json['course_id'],
+      lessonId: json['lesson_id'],
+      title: json['title'],
+      description: json['description'] ?? '',
+      timeLimit: json['time_limit'],
+      passingScore: json['passing_score'] ?? 60,
+      questionsCount: json['questions_count'] ?? 0,
+      isPublished: json['is_published'] ?? false,
+      createdAt: DateTime.parse(json['created_at']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'question': question,
-      'options': options,
-      'correct_index': correctIndex,
-      'explanation': explanation,
+      'id': id,
+      'course_id': courseId,
+      'lesson_id': lessonId,
+      'title': title,
+      'description': description,
+      'time_limit': timeLimit,
+      'passing_score': passingScore,
+      'questions_count': questionsCount,
+      'is_published': isPublished,
+      'created_at': createdAt.toIso8601String(),
     };
   }
 }

@@ -11,6 +11,9 @@ import '../models/course_model.dart';
 import 'course_details_screen.dart';
 import '../widgets/empty_state_widget.dart';
 
+import 'package:skeletonizer/skeletonizer.dart';
+import '../widgets/app_loading_indicator.dart';
+
 class CourseCatalogScreen extends StatefulWidget {
   const CourseCatalogScreen({super.key});
 
@@ -44,6 +47,13 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
       appBar: AppBar(
         title: const Text("تصفح الكورسات"),
         actions: [
+          Obx(() => _courseController.isAiSorting.value 
+            ? const Center(child: Padding(padding: EdgeInsets.all(12.0), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
+            : IconButton(
+                icon: const Icon(Icons.auto_awesome_rounded, color: Colors.amber),
+                onPressed: () => _courseController.sortCoursesByAI(),
+                tooltip: "رتب حسب اهتماماتي (AI)",
+              )),
           IconButton(
             icon: const Icon(Icons.filter_list_rounded),
             onPressed: () {
@@ -56,39 +66,41 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
         children: [
           RefreshIndicator(
             onRefresh: () => _courseController.fetchCoursesFromApi(),
-            color: AppColors.accentTeal,
+            color: context.theme.primaryColor,
             child: Column(
               children: [
                 _buildSearchBar(),
                 _buildCategoriesList(),
                 Expanded(
                   child: Obx(() {
-                    if (_courseController.isLoading.value) {
-                      return _buildShimmerGrid();
-                    }
-                    
-                    if (_courseController.filteredCourses.isEmpty) {
-                      return EmptyStateWidget(
-                        title: "لا توجد كورسات",
-                        description: "جرب البحث عن شيء آخر أو تغيير التصنيف",
-                        onRetry: () => _courseController.fetchCoursesFromApi(),
-                      );
-                    }
-                    
-                    return GridView.builder(
-                      controller: _scrollController,
-                      padding: EdgeInsets.all(16.r),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.72,
-                        crossAxisSpacing: 16.w,
-                        mainAxisSpacing: 16.h,
-                      ),
-                      itemCount: _courseController.filteredCourses.length,
-                      itemBuilder: (context, index) {
-                        final course = _courseController.filteredCourses[index];
-                        return _buildCourseCard(context, course);
-                      },
+                    return Skeletonizer(
+                      enabled: _courseController.isLoading.value,
+                      child: _courseController.filteredCourses.isEmpty && !_courseController.isLoading.value
+                          ? EmptyStateWidget(
+                              title: "لا توجد كورسات",
+                              description: "جرب البحث عن شيء آخر أو تغيير التصنيف",
+                              onRetry: () => _courseController.fetchCoursesFromApi(),
+                            )
+                          : GridView.builder(
+                              controller: _scrollController,
+                              padding: EdgeInsets.all(16.r),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.72,
+                                crossAxisSpacing: 16.w,
+                                mainAxisSpacing: 16.h,
+                              ),
+                              itemCount: _courseController.isLoading.value 
+                                  ? 4 
+                                  : _courseController.filteredCourses.length,
+                              itemBuilder: (context, index) {
+                                if (_courseController.isLoading.value) {
+                                  return _buildFakeCourseCard();
+                                }
+                                final course = _courseController.filteredCourses[index];
+                                return _buildCourseCard(context, course);
+                              },
+                            ),
                     );
                   }),
                 ),
@@ -101,7 +113,7 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
                   left: 20.w,
                   child: FloatingActionButton.small(
                     onPressed: () => _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeOut),
-                    backgroundColor: AppColors.primaryNavy,
+                    backgroundColor: context.theme.primaryColor,
                     child: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
                   ).animate().fadeIn().scale(),
                 )
@@ -156,9 +168,9 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
               label: Text(category),
               selected: isSelected,
               onSelected: (val) => _courseController.selectedCategory.value = category,
-              selectedColor: AppColors.accentTeal.withOpacity(0.2),
+              selectedColor: Get.theme.primaryColor.withOpacity(0.2),
               labelStyle: TextStyle(
-                color: isSelected ? AppColors.accentTeal : AppColors.textMuted,
+                color: isSelected ? Get.theme.primaryColor : AppColors.textMuted,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -168,25 +180,28 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
     );
   }
 
-  Widget _buildShimmerGrid() {
-    return GridView.builder(
-      padding: EdgeInsets.all(16.r),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.72,
-        crossAxisSpacing: 16.w,
-        mainAxisSpacing: 16.h,
+  Widget _buildFakeCourseCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Get.isDarkMode ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(15.r),
       ),
-      itemCount: 6,
-      itemBuilder: (context, index) => Shimmer.fromColors(
-        baseColor: Get.isDarkMode ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
-        highlightColor: Get.isDarkMode ? Colors.white.withOpacity(0.2) : Colors.black.withOpacity(0.2),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15.r),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Container(color: Colors.grey)),
+          Padding(
+            padding: EdgeInsets.all(12.r),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(width: 100, height: 14, color: Colors.grey),
+                SizedBox(height: 8.h),
+                Container(width: 60, height: 12, color: Colors.grey),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -198,92 +213,72 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
       closedElevation: 0,
       openColor: context.theme.scaffoldBackgroundColor,
       openBuilder: (context, _) => CourseDetailsScreen(course: course),
-      closedBuilder: (context, openContainer) => GestureDetector(
-        onTap: openContainer,
-        child: Container(
-          decoration: BoxDecoration(
-            color: context.theme.cardColor,
-            borderRadius: BorderRadius.circular(15.r),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: course.coverUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(color: Colors.black.withOpacity(0.1)),
-                      errorWidget: (context, url, error) => const Icon(Icons.book_rounded),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.accentTeal,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          course.subject,
-                          style: TextStyle(color: Colors.white, fontSize: 10.sp, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: EdgeInsets.all(12.r),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        course.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.sp),
-                      ),
-                      const Spacer(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              course.instructor,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 11.sp),
-                            ),
-                          ),
-                          Text(
-                            "${course.price.toInt()} ل.س",
-                            style: TextStyle(color: AppColors.accentTeal, fontWeight: FontWeight.bold, fontSize: 11.sp),
-                          ),
-                        ],
-                      ),
-                    ],
+      closedBuilder: (context, openContainer) {
+        return GestureDetector(
+          onTap: openContainer,
+          child: Hero(
+            tag: 'course_${course.id}',
+            child: Container(
+              decoration: BoxDecoration(
+                color: Get.isDarkMode ? AppColors.darkCard : Colors.white,
+                borderRadius: BorderRadius.circular(15.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                ),
+                ],
               ),
-            ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(15.r)),
+                      child: CachedNetworkImage(
+                        imageUrl: course.thumbnailUrl ?? '',
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        placeholder: (context, url) => Container(color: Colors.grey[200]),
+                        errorWidget: (context, url, error) => const Icon(Icons.error),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(12.r),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          course.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.bold,
+                            color: Get.isDarkMode ? Colors.white : AppColors.textMain,
+                          ),
+                        ),
+                        SizedBox(height: 4.h),
+                        Text(
+                          course.instructorName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        ).animate().fadeIn(duration: 500.ms).scale(begin: const Offset(0.95, 0.95), end: const Offset(1, 1));
+      },
     );
   }
 }
