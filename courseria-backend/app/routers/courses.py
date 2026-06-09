@@ -4,6 +4,7 @@ from app.dependencies import get_current_user, get_current_teacher, get_supabase
 from typing import List
 import datetime
 import logging
+import uuid
 
 logger = logging.getLogger("courseria.courses")
 
@@ -48,6 +49,12 @@ async def get_courses(db=Depends(get_supabase_client)):
 async def get_course_details(course_id: str, db=Depends(get_supabase_client)):
     """جلب تفاصيل كورس معين مع دروسه"""
     try:
+        # Check if course_id is a valid UUID before querying
+        try:
+            uuid.UUID(course_id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="تنسيق المعرف غير صالح")
+
         response = db.table("courses").select("*, lessons(*)").eq("id", course_id).maybe_single().execute()
         if not response.data:
             raise HTTPException(status_code=404, detail="الكورس غير موجود")
