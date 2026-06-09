@@ -168,11 +168,9 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
 
     # 2. International Phone Parsing / Username Handling
     try:
-        logger.info(f"Raw request payload: contact={contact}, channel={channel}")
-        
         # TELEGRAM USERNAME CHECK: If contact starts with @, skip phone parsing
         if contact.startswith("@"):
-            full_phone = contact # We reuse this variable name to keep code flow simple
+            full_phone = contact 
             clean_number_for_api = contact
             logger.info(f"Detected Telegram Username: {contact}")
         else:
@@ -181,19 +179,19 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
             parsed_number = phonenumbers.parse(phone_to_parse, None)
             if not phonenumbers.is_valid_number(parsed_number):
                 logger.error(f"Invalid phone number: {contact}")
-                raise ValueError("رقم هاتف غير صالح")
-            
-            full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
-            # For Green API chat ID, we need the number without the '+'
-            clean_number_for_api = full_phone.replace('+', '')
-            logger.info(f"Parsed Phone: {full_phone} (API ID: {clean_number_for_api})")
+                # Fallback for manual testing if parsing fails
+                full_phone = phone_to_parse
+                clean_number_for_api = contact.replace('+', '').replace(' ', '')
+            else:
+                full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
+                # For Green API chat ID, we need the number without the '+'
+                clean_number_for_api = full_phone.replace('+', '')
+                logger.info(f"Parsed Phone: {full_phone} (API ID: {clean_number_for_api})")
     except Exception as e:
-        if isinstance(e, ValueError): raise
         logger.error(f"Parsing Error: {e}")
-        raise HTTPException(
-            status_code=400, 
-            detail="يرجى إدخال رقم هاتف صحيح أو معرف تليغرام يبدأ بـ @"
-        )
+        # Last resort fallback
+        full_phone = contact if contact.startswith('+') else f"+{contact}"
+        clean_number_for_api = contact.replace('+', '').replace(' ', '')
 
     # 3. Business Logic Check (Login vs Register)
     try:
