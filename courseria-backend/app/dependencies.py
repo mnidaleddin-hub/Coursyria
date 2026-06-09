@@ -12,8 +12,11 @@ def log_backdoor_usage(user_id: str, ip: str = "unknown"):
     import datetime
     print(f"[{datetime.datetime.utcnow()}] BACKDOOR ALERT: User {user_id} accessed from {ip}")
 
-async def verify_token(request: Request, authorization: str = Header(...)):
+async def verify_token(request: Request, authorization: str = Header(None)):
     """التحقق من صحة التوكن باستخدام Supabase Auth أو محلياً (للتحقق من المراجعة)"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="لم يتم توفير توكن المصادقة")
+        
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="نوع التوكن غير صالح")
     

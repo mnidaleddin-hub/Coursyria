@@ -1,0 +1,25 @@
+{
+  "concurrency": [
+    [
+      200,
+      201,
+      200
+    ],
+    [
+      200,
+      201,
+      200
+    ],
+    [
+      200,
+      201,
+      200
+    ]
+  ],
+  "edge_cases": {
+    "Invalid ID 404": 422,
+    "Unauthorized 401": 422,
+    "Forbidden 401/403/404": 404,
+    "Long AI Input": 500
+  }
+}
