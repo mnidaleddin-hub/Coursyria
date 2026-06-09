@@ -88,7 +88,8 @@ async def postgrest_exception_handler(request: Request, exc: APIError):
 async def global_exception_handler(request: Request, exc: Exception):
     # Log the full error
     import traceback
-    traceback.print_exc()
+    error_trace = traceback.format_exc()
+    logger.error(f"Global Exception: {error_trace}")
     
     # Check if it's a 404 already
     if isinstance(exc, HTTPException):
@@ -97,10 +98,16 @@ async def global_exception_handler(request: Request, exc: Exception):
             content={"detail": exc.detail}
         )
 
-    # Generic error handling
+    # Return error trace only if NOT in production for easier debugging
+    # But for now, we want it in the response to see it
     return JSONResponse(
         status_code=500,
-        content={"status": "error", "message": "حدث خطأ داخلي في السيرفر"}
+        content={
+            "status": "error", 
+            "message": "حدث خطأ داخلي في السيرفر",
+            "debug": str(exc),
+            "trace": error_trace[:500]
+        }
     )
 
 # CORS Middleware setup
