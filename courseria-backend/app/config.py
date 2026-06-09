@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     FROM_EMAIL: str = "onboarding@resend.dev"
 
     # AI settings
-    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_API_KEY: str
     OPENROUTER_URL: str = "https://openrouter.ai/api/v1/chat/completions"
     DEFAULT_AI_MODEL: str = "google/gemini-2.0-flash-exp:free"
 

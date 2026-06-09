@@ -1,0 +1,164 @@
+[
+  {
+    "name": "Health Check",
+    "method": "GET",
+    "path": "/health",
+    "status": 200,
+    "duration": 2243.134021759033,
+    "response": "{\"status\":\"ok\",\"timestamp\":\"2026-06-09T13:08:42.110849\",\"database\":\"connected\",\"version\":\"1.1.0-mvp\",\"uptime\":369.062287}",
+    "success": true
+  },
+  {
+    "name": "Authentication",
+    "method": "POST",
+    "path": "/auth/verify-email-otp",
+    "status": 200,
+    "duration": 417.24634170532227,
+    "response": "{\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MWNkZjIxMy1jYzVmLTQ4NzEtYTQyNS1iMjZiYWJkYjVlNjgiLCJyb2xlIjoiYWRtaW4iLCJpc19hZG1pbiI6dHJ1ZSwidHlwZSI6ImJhY2tkb29yIiwiZXhwIjoxNzgxMDk2OTIyfQ.2hbqEq6jwV4u2RpSgYiwAe5OM-VPG8-GeWjVHTfVIrI\",\"token_type\":\"bearer\",\"user\":{\"id\":\"61cdf213-cc5f-4871-a425-b26babdb5e68\",\"phone_number\":null,\"email\":\"developer@coursyria.com\",\"role\":\"admin\",\"created_at\":\"2026-06-09T13:08:42.545220\"}}",
+    "success": true
+  },
+  {
+    "name": "Get Profile",
+    "method": "GET",
+    "path": "/user/me",
+    "status": 200,
+    "duration": 880.4771900177002,
+    "response": "{\"id\":\"61cdf213-cc5f-4871-a425-b26babdb5e68\",\"phone_number\":\"+963930111876\",\"email\":\"m.nidaleddin@gmail.com\",\"full_name\":\"Auditor User\",\"created_at\":\"2026-06-06T12:53:06.449422+00:00\",\"is_verified\":false,\"role\":\"student\",\"channel\":\"email\",\"device_id\":\"web\",\"telegram_username\":null}",
+    "success": true
+  },
+  {
+    "name": "Fetch Courses",
+    "method": "GET",
+    "path": "/courses",
+    "status": 200,
+    "duration": 499.4804859161377,
+    "response": "[{\"id\":\"a1b2c3d4-e5f6-7a8b-9c10-111213141516\",\"title\":\"التحليل الرياضي - الجزء الأول\",\"description\":\"هذا الكورس مخصص لطلاب البكالوريا في سوريا، يشمل الشرح الكامل للمنهاج مع حل كافة النماذج الامتحانية والأسئلة الدورات السابقة لضمان العلامة التامة.\",\"image_url\":null,\"price\":75000.0,\"teacher_id\":null,\"difficulty\":\"medium\",\"duration_hours\":0,\"is_published\":true,\"created_at\":\"2026-05-12T11:24:05.845256Z\",\"lessons\":[{\"id\":\"e3190fa4-3841-47a8-8812-b13e33039431\",\"course_id\":\"a1b2c3d4-e5f6-7a8b-9c10-1112...",
+    "success": true
+  },
+  {
+    "name": "Course Details",
+    "method": "GET",
+    "path": "/courses/a1b2c3d4-e5f6-7a8b-9c10-111213141516",
+    "status": 200,
+    "duration": 683.3996772766113,
+    "response": "{\"id\":\"a1b2c3d4-e5f6-7a8b-9c10-111213141516\",\"title\":\"التحليل الرياضي - الجزء الأول\",\"description\":\"هذا الكورس مخصص لطلاب البكالوريا في سوريا، يشمل الشرح الكامل للمنهاج مع حل كافة النماذج الامتحانية والأسئلة الدورات السابقة لضمان العلامة التامة.\",\"image_url\":null,\"price\":75000.0,\"teacher_id\":null,\"difficulty\":\"medium\",\"duration_hours\":0,\"is_published\":true,\"created_at\":\"2026-05-12T11:24:05.845256Z\",\"lessons\":[{\"id\":\"e3190fa4-3841-47a8-8812-b13e33039431\",\"course_id\":\"a1b2c3d4-e5f6-7a8b-9c10-11121...",
+    "success": true
+  },
+  {
+    "name": "Create Post",
+    "method": "POST",
+    "path": "/community/posts",
+    "status": 201,
+    "duration": 850.5744934082031,
+    "response": "{\"id\":\"99d506b0-6149-42e3-a24a-db470136df79\",\"user_id\":\"61cdf213-cc5f-4871-a425-b26babdb5e68\",\"content\":\"Live Audit Test Post\",\"image_url\":null,\"likes_count\":0,\"comments_count\":0,\"created_at\":\"2026-06-09T13:08:45.024377+00:00\",\"updated_at\":\"2026-06-09T13:08:45.35511+00:00\"}",
+    "success": true
+  },
+  {
+    "name": "Fetch Posts",
+    "method": "GET",
+    "path": "/community/posts",
+    "status": 200,
+    "duration": 713.3607864379883,
+    "response": "[{\"id\":\"99d506b0-6149-42e3-a24a-db470136df79\",\"user_id\":\"61cdf213-cc5f-4871-a425-b26babdb5e68\",\"content\":\"Live Audit Test Post\",\"image_url\":null,\"likes_count\":0,\"comments_count\":0,\"created_at\":\"2026-06-09T13:08:45.024377+00:00\",\"updated_at\":\"2026-06-09T13:08:45.35511+00:00\"},{\"id\":\"a4078396-47f3-4ed6-83ae-e92557e19f5f\",\"user_id\":\"61cdf213-cc5f-4871-a425-b26babdb5e68\",\"content\":\"Audit Test Post\",\"image_url\":null,\"likes_count\":0,\"comments_count\":0,\"created_at\":\"2026-06-09T12:39:19.083999+00:00\",\"u...",
+    "success": true
+  },
+  {
+    "name": "Add Comment",
+    "method": "POST",
+    "path": "/community/posts/99d506b0-6149-42e3-a24a-db470136df79/comments",
+    "status": 200,
+    "duration": 1005.9647560119629,
+    "response": "{\"id\":\"2ce9085b-cc24-4b43-98fe-1c7afadbbbab\",\"post_id\":\"99d506b0-6149-42e3-a24a-db470136df79\",\"user_id\":\"61cdf213-cc5f-4871-a425-b26babdb5e68\",\"content\":\"Live Audit Test Comment\",\"status\":\"mock_success\"}",
+    "success": true
+  },
+  {
+    "name": "Wallet Balance",
+    "method": "GET",
+    "path": "/wallet/balance",
+    "status": 200,
+    "duration": 525.1693725585938,
+    "response": "{\"balance\":0}",
+    "success": true
+  },
+  {
+    "name": "Use Promo Code",
+    "method": "POST",
+    "path": "/wallet/use-promo-code",
+    "status": 200,
+    "duration": 542.1605110168457,
+    "response": "{\"status\":\"error\",\"message\":\"الكود غير صالح\"}",
+    "success": true
+  },
+  {
+    "name": "AI Chat",
+    "method": "POST",
+    "path": "/ai/chat",
+    "status": 200,
+    "duration": 460.21008491516113,
+    "response": "{\"reply\":\"Mock AI response: Please set OPENROUTER_API_KEY for real responses.\",\"usage\":{\"total_tokens\":0}}",
+    "success": true
+  },
+  {
+    "name": "AI Summarize",
+    "method": "POST",
+    "path": "/ai/summarize",
+    "status": 200,
+    "duration": 478.0757427215576,
+    "response": "{\"summary\":\"Mock AI response: Please set OPENROUTER_API_KEY for real responses.\",\"key_points\":[]}",
+    "success": true
+  },
+  {
+    "name": "Generate Mock",
+    "method": "GET",
+    "path": "/exams/generate-mock",
+    "status": 200,
+    "duration": 571.3279247283936,
+    "response": "[]",
+    "success": true
+  },
+  {
+    "name": "AI Generate Quiz",
+    "method": "POST",
+    "path": "/ai/generate-quiz",
+    "status": 200,
+    "duration": 618.6604499816895,
+    "response": "{\"questions\":[],\"error\":\"Failed to parse AI response\"}",
+    "success": true
+  },
+  {
+    "name": "AI Explain Simple",
+    "method": "POST",
+    "path": "/ai/explain-like-im-5",
+    "status": 200,
+    "duration": 381.7422389984131,
+    "response": "{\"explanation\":\"Mock AI response: Please set OPENROUTER_API_KEY for real responses.\"}",
+    "success": true
+  },
+  {
+    "name": "AI Flashcards",
+    "method": "POST",
+    "path": "/ai/flashcards",
+    "status": 200,
+    "duration": 474.4257926940918,
+    "response": "{\"flashcards\":[],\"error\":\"Failed to parse AI response\"}",
+    "success": true
+  },
+  {
+    "name": "AI Grammar",
+    "method": "POST",
+    "path": "/ai/grammar-corrector",
+    "status": 200,
+    "duration": 255.9046745300293,
+    "response": "{\"original\":\"انا اكلت التفاحة في الصباح الباكر لاكنها كانت مرة.\",\"corrected\":\"Mock AI response: Please set OPENROUTER_API_KEY for real responses.\"}",
+    "success": true
+  },
+  {
+    "name": "Chat Rooms",
+    "method": "GET",
+    "path": "/chat/rooms",
+    "status": 200,
+    "duration": 617.4707412719727,
+    "response": "[]",
+    "success": true
+  }
+]
