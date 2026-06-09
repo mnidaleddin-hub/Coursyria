@@ -68,14 +68,39 @@ async def etag_middleware(request: Request, call_next):
 # Gzip Compression
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Custom Exception Handler to prevent 500 on small DB issues
+# Custom Exception Handler for DB/Table missing errors
+from postgrest.exceptions import APIError
+
+@app.exception_handler(APIError)
+async def postgrest_exception_handler(request: Request, exc: APIError):
+    # If table or column not found, return empty list/200 instead of 500
+    if "PGRST204" in str(exc) or "PGRST205" in str(exc) or "42703" in str(exc):
+        return JSONResponse(
+            status_code=200,
+            content={"status": "warning", "message": "الميزة غير متوفرة حالياً", "data": []}
+        )
+    return JSONResponse(
+        status_code=400,
+        content={"status": "error", "message": str(exc)}
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # Log the full error
     import traceback
     traceback.print_exc()
+    
+    # Check if it's a 404 already
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail}
+        )
+
+    # Generic error handling
     return JSONResponse(
-        status_code=200,
-        content={"status": "warning", "message": str(exc), "data": []}
+        status_code=500,
+        content={"status": "error", "message": "حدث خطأ داخلي في السيرفر"}
     )
 
 # CORS Middleware setup
