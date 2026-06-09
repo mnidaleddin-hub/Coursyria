@@ -27,7 +27,7 @@ def send_whatsapp_otp(phone_number: str, otp_code: str):
     url = f"https://7107.api.greenapi.com/waInstance{WA_ID_INSTANCE}/sendMessage/{WA_TOKEN_INSTANCE}"
     payload = {
         "chatId": f"{phone_number}@c.us",
-        "message": f"رمز التحقق الخاص بك هو {otp_code}"
+        "message": f"رمز التحقق الخاص بك في كورسيريا هو: {otp_code}"
     }
     headers = {'Content-Type': 'application/json'}
     
@@ -38,7 +38,8 @@ def send_telegram_otp(phone_number: str, otp_code: str):
     url = f"https://4100.api.green-api.com/waInstance{TG_ID_INSTANCE}/sendMessage/{TG_TOKEN_INSTANCE}"
     payload = {
         "chatId": f"{phone_number}@c.us",
-        "message": f"رمز التحقق الخاص بك هو {otp_code}"
+        "message": f"رمز التحقق الخاص بك في كورسيريا هو: {otp_code}",
+        "customPreview": {}
     }
     headers = {'Content-Type': 'application/json'}
     
