@@ -181,27 +181,46 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
         
         # TELEGRAM USERNAME CHECK: If contact starts with @, skip phone parsing
         if contact.startswith("@"):
-            full_phone = contact # We reuse this variable name to keep code flow simple
+            full_phone = contact
             clean_number_for_api = contact
             logger.info(f"Detected Telegram Username: {contact}")
         else:
-            # Standardize contact format for parsing
-            phone_to_parse = contact if contact.startswith('+') else f"+{contact}"
-            parsed_number = phonenumbers.parse(phone_to_parse, None)
-            if not phonenumbers.is_valid_number(parsed_number):
-                logger.error(f"Invalid phone number: {contact}")
-                raise ValueError("رقم هاتف غير صالح")
+            # STRICT VALIDATION: Country Code + 9 Digits (No +, No 00, No leading zero in local part)
+            # 1. Basic cleaning
+            clean_contact = contact.replace('+', '').replace(' ', '').replace('-', '')
+            if clean_contact.startswith('00'):
+                clean_contact = clean_contact[2:]
             
-            full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
-            # For Green API chat ID, we need the number without the '+'
-            clean_number_for_api = full_phone.replace('+', '')
-            logger.info(f"Parsed Phone: {full_phone} (API ID: {clean_number_for_api})")
+            # 2. Check if it's all digits
+            if not clean_contact.isdigit():
+                raise ValueError("رقم الهاتف يجب أن يحتوي على أرقام فقط")
+            
+            # 3. Validation of subscriber part (last 9 digits)
+            if len(clean_contact) < 10:
+                raise ValueError("رقم الهاتف غير مكتمل (يجب أن يشمل رمز البلد + 9 أرقام)")
+            
+            subscriber_part = clean_contact[-9:]
+            country_part = clean_contact[:-9]
+
+            # RULE: The part before the 9 digits must not end with 0 (e.g., 9710... is invalid)
+            if len(clean_contact) > 9 and clean_contact[-10] == '0':
+                raise ValueError("لا يمكن أن تبدأ الخانة الأولى بصفر (مثال: 9715... وليس 97105...)")
+
+            if len(subscriber_part) != 9:
+                raise ValueError("يجب أن يتكون رقم الهاتف من 9 خانات بعد رمز البلد")
+
+            # 4. Final formatting
+            full_phone = f"+{clean_contact}"
+            clean_number_for_api = clean_contact
+            
+            logger.info(f"Validated Phone: {full_phone} (API ID: {clean_number_for_api})")
+            
     except Exception as e:
         if isinstance(e, ValueError): raise
         logger.error(f"Parsing Error: {e}")
         raise HTTPException(
             status_code=400, 
-            detail="يرجى إدخال رقم هاتف صحيح أو معرف تليغرام يبدأ بـ @"
+            detail=str(e) if isinstance(e, ValueError) else "يرجى إدخال رقم هاتف صحيح (رمز البلد + 9 أرقام بدون أصفار زائدة)"
         )
 
     # 3. Business Logic Check (Login vs Register)
