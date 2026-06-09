@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     WA_TOKEN_INSTANCE: str = ""
     
     # AI settings
-    OPENROUTER_API_KEY: str
+    OPENROUTER_API_KEY: str = ""
     OPENROUTER_URL: str = "https://openrouter.ai/api/v1/chat/completions"
     DEFAULT_AI_MODEL: str = "google/gemini-2.0-flash-exp:free"
 

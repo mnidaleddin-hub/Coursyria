@@ -386,10 +386,15 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
         if contact.startswith("@"):
             full_phone = contact
         else:
-            phone_to_parse = contact if contact.startswith('+') else f"+{contact}"
-            parsed_number = phonenumbers.parse(phone_to_parse, None)
-            full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
-    except:
+            # UNIFY LOGIC WITH send_otp:
+            clean_contact = contact.replace('+', '').replace(' ', '').replace('-', '')
+            if clean_contact.startswith('00'):
+                clean_contact = clean_contact[2:]
+            
+            # Use the same formatting as send_otp to ensure DB match
+            full_phone = f"+{clean_contact}"
+    except Exception as e:
+        logger.error(f"Normalization Error in verify_otp: {e}")
         full_phone = contact
 
     # 3. Real OTP verification logic
