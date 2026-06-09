@@ -97,14 +97,11 @@ async def check_wa_config():
 
 @router.post("/test-wa-direct")
 async def test_wa_direct(
-    request: Request
+    phone: str = Body(..., embed=True), 
+    message: str = Body("Test from Courseria", embed=True)
 ):
     """Diagnostic endpoint to test Green API directly"""
     try:
-        body = await request.json()
-        phone = body.get("phone", "963930111876")
-        message = body.get("message", "Test")
-        
         t_id = "7107621915"
         t_token = "671698dabcf043ed84bc4726b52d242f6035b4f0cc3b4a4f81"
         
@@ -125,7 +122,8 @@ async def test_wa_direct(
             "target": f"{clean_phone}@c.us"
         }
     except Exception as e:
-        return {"debug_error": str(e)}
+        # RETURN ERROR AS 200 TO BYPASS GLOBAL HANDLER
+        return JSONResponse(status_code=200, content={"debug_error": str(e)})
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
