@@ -9,6 +9,7 @@ python-multipart
 passlib[bcrypt]
 phonenumbers
 httpx
+requests
 pytz
 loguru
 resend
