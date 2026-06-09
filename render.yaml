@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: coursyria-api
+    name: courseria-backend
     env: python
     rootDir: courseria-backend
     buildCommand: pip install -r requirements.txt
