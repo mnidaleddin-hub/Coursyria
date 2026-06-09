@@ -86,11 +86,6 @@ async def postgrest_exception_handler(request: Request, exc: APIError):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    # Log the full error
-    import traceback
-    error_trace = traceback.format_exc()
-    logger.error(f"Global Exception: {error_trace}")
-    
     # Check if it's a 404 already
     if isinstance(exc, HTTPException):
         return JSONResponse(
@@ -104,9 +99,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={
             "status": "error", 
-            "message": "حدث خطأ داخلي في السيرفر",
-            "debug": str(exc),
-            "trace": error_trace[:500]
+            "message": str(exc)
         }
     )
 
