@@ -97,17 +97,16 @@ async def check_wa_config():
 
 @router.post("/test-wa-direct")
 async def test_wa_direct(
-    phone: str = Body(..., embed=True), 
-    message: str = Body("Test from Courseria", embed=True),
-    id_instance: Optional[str] = Body(None, embed=True),
-    token: Optional[str] = Body(None, embed=True)
+    request: Request
 ):
     """Diagnostic endpoint to test Green API directly"""
-    # Simple direct dict return to avoid any schema/setting issues during debug
     try:
-        # Use provided or hardcoded for debug
-        t_id = id_instance or "7107621915"
-        t_token = token or "671698dabcf043ed84bc4726b52d242f6035b4f0cc3b4a4f81"
+        body = await request.json()
+        phone = body.get("phone", "963930111876")
+        message = body.get("message", "Test")
+        
+        t_id = "7107621915"
+        t_token = "671698dabcf043ed84bc4726b52d242f6035b4f0cc3b4a4f81"
         
         url = f"https://api.green-api.com/waInstance{t_id}/sendMessage/{t_token}"
         clean_phone = str(phone).replace('+', '').replace(' ', '').replace('-', '')
