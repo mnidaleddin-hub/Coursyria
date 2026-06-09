@@ -2,43 +2,43 @@
   {
     "name": "Health Check",
     "status": 200,
-    "duration": 2119.489908218384,
+    "duration": 1561.5177154541016,
     "success": true,
     "response": {
       "status": "ok",
-      "timestamp": "2026-06-09T13:43:33.979637",
+      "timestamp": "2026-06-09T13:44:38.532514",
       "database": "connected",
       "version": "1.1.0-mvp",
-      "uptime": 621.387953
+      "uptime": 685.940822
     }
   },
   {
     "name": "Authentication",
     "status": 200,
-    "duration": 498.2759952545166,
+    "duration": 410.80260276794434,
     "success": true,
     "response": {
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MWNkZjIxMy1jYzVmLTQ4NzEtYTQyNS1iMjZiYWJkYjVlNjgiLCJyb2xlIjoiYWRtaW4iLCJpc19hZG1pbiI6dHJ1ZSwidHlwZSI6ImJhY2tkb29yIiwiZXhwIjoxNzgxMDk5MDE0fQ.zgxz6EqN4gJpnciPeTcBmfKzo75vLaniWh7oNcSB1XY",
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MWNkZjIxMy1jYzVmLTQ4NzEtYTQyNS1iMjZiYWJkYjVlNjgiLCJyb2xlIjoiYWRtaW4iLCJpc19hZG1pbiI6dHJ1ZSwidHlwZSI6ImJhY2tkb29yIiwiZXhwIjoxNzgxMDk5MDc4fQ.19VbZdx8piSLhUDwXfI2KlwX-0BVGRgt34HD_twt_jY",
       "token_type": "bearer",
       "user": {
         "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
         "phone_number": null,
         "email": "developer@coursyria.com",
         "role": "admin",
-        "created_at": "2026-06-09T13:43:34.488589"
+        "created_at": "2026-06-09T13:44:38.926738"
       }
     }
   },
   {
     "name": "Get Profile",
     "status": 200,
-    "duration": 699.3517875671387,
+    "duration": 802.609920501709,
     "success": true,
     "response": {
       "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
       "phone_number": "+963930111876",
       "email": "m.nidaleddin@gmail.com",
-      "full_name": "Auditor User",
+      "full_name": "مستخدم اختبار شامل",
       "created_at": "2026-06-06T12:53:06.449422+00:00",
       "is_verified": false,
       "role": "student",
@@ -50,7 +50,7 @@
   {
     "name": "Fetch Courses",
     "status": 200,
-    "duration": 661.733865737915,
+    "duration": 619.8117733001709,
     "success": true,
     "response": [
       {
@@ -354,7 +354,7 @@
   {
     "name": "Course Details",
     "status": 200,
-    "duration": 576.0774612426758,
+    "duration": 577.5823593139648,
     "success": true,
     "response": {
       "id": "a1b2c3d4-e5f6-7a8b-9c10-111213141516",
@@ -414,25 +414,35 @@
   {
     "name": "Create Post",
     "status": 201,
-    "duration": 813.5986328125,
+    "duration": 398.2212543487549,
     "success": true,
     "response": {
-      "id": "b6d8a88d-1bf8-4f57-ba85-ef001ad0ab7d",
+      "id": "650f5f7b-ba81-406d-a499-534243feeedd",
       "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
       "content": "هذا اختبار شامل للمجتمع – هل يعمل التطبيق بكفاءة؟",
       "image_url": null,
       "likes_count": 0,
       "comments_count": 0,
-      "created_at": "2026-06-09T13:43:36.850911+00:00",
-      "updated_at": "2026-06-09T13:43:37.165425+00:00"
+      "created_at": "2026-06-09T13:44:41.328349+00:00",
+      "updated_at": "2026-06-09T13:44:41.411345+00:00"
     }
   },
   {
     "name": "Fetch Posts",
     "status": 200,
-    "duration": 645.6563472747803,
+    "duration": 822.8342533111572,
     "success": true,
     "response": [
+      {
+        "id": "650f5f7b-ba81-406d-a499-534243feeedd",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "هذا اختبار شامل للمجتمع – هل يعمل التطبيق بكفاءة؟",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T13:44:41.328349+00:00",
+        "updated_at": "2026-06-09T13:44:41.411345+00:00"
+      },
       {
         "id": "b6d8a88d-1bf8-4f57-ba85-ef001ad0ab7d",
         "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
@@ -628,11 +638,11 @@
   {
     "name": "Add Comment",
     "status": 200,
-    "duration": 1041.1057472229004,
+    "duration": 1015.1562690734863,
     "success": true,
     "response": {
-      "id": "f6fad5a3-b133-4771-a3d9-2776825ac579",
-      "post_id": "b6d8a88d-1bf8-4f57-ba85-ef001ad0ab7d",
+      "id": "3e83263e-7465-4594-88b6-91ea141a446a",
+      "post_id": "650f5f7b-ba81-406d-a499-534243feeedd",
       "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
       "content": "تعليق تجريبي من المستخدم الآلي.",
       "status": "mock_success"
@@ -641,7 +651,7 @@
   {
     "name": "Wallet Balance",
     "status": 200,
-    "duration": 557.4440956115723,
+    "duration": 527.5082588195801,
     "success": true,
     "response": {
       "balance": 0
@@ -650,7 +660,7 @@
   {
     "name": "Use Promo Code",
     "status": 200,
-    "duration": 546.1084842681885,
+    "duration": 364.1812801361084,
     "success": true,
     "response": {
       "status": "error",
@@ -660,63 +670,63 @@
   {
     "name": "AI Chat",
     "status": 500,
-    "duration": 536.4875793457031,
+    "duration": 472.9931354522705,
     "success": false,
     "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
   },
   {
     "name": "AI Summarize",
     "status": 500,
-    "duration": 645.2367305755615,
+    "duration": 594.9559211730957,
     "success": false,
     "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
   },
   {
     "name": "AI Generate Quiz",
     "status": 500,
-    "duration": 569.3161487579346,
+    "duration": 777.4200439453125,
     "success": false,
     "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
   },
   {
     "name": "AI Explain Simple",
     "status": 500,
-    "duration": 510.5874538421631,
+    "duration": 568.4769153594971,
     "success": false,
     "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
   },
   {
     "name": "AI Flashcards",
     "status": 500,
-    "duration": 608.4399223327637,
+    "duration": 495.0432777404785,
     "success": false,
     "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
   },
   {
     "name": "AI Grammar",
     "status": 500,
-    "duration": 679.1160106658936,
+    "duration": 479.8998832702637,
     "success": false,
     "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
   },
   {
     "name": "Generate Mock Exam",
     "status": 200,
-    "duration": 376.12366676330566,
+    "duration": 381.9098472595215,
     "success": true,
     "response": []
   },
   {
     "name": "Chat Rooms",
     "status": 200,
-    "duration": 694.4098472595215,
+    "duration": 703.467607498169,
     "success": true,
     "response": []
   },
   {
     "name": "Update Profile",
     "status": 200,
-    "duration": 527.4360179901123,
+    "duration": 352.0524501800537,
     "success": true,
     "response": {
       "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
@@ -734,7 +744,7 @@
   {
     "name": "User Stats",
     "status": 200,
-    "duration": 541.3382053375244,
+    "duration": 368.9308166503906,
     "success": true,
     "response": {
       "points": 0,
