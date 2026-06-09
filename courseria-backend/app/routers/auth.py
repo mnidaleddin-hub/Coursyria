@@ -127,21 +127,27 @@ async def test_wa_direct(
     
     try:
         # Use requests (synchronous but reliable for diagnostic)
+        logger.info(f"POSTing to Green API: {url}")
         response = requests.post(url, json=payload, headers=headers, timeout=20.0)
         
         logger.info(f"[DIAGNOSTIC] Status: {response.status_code}")
-        logger.info(f"[DIAGNOSTIC] Response: {response.text}")
         
+        # Safe JSON parse
+        try:
+            res_data = response.json()
+        except:
+            res_data = response.text
+            
         return {
             "status": "success" if response.status_code == 200 else "error",
             "http_status": response.status_code,
-            "response": response.json() if response.status_code == 200 else response.text,
+            "response": res_data,
             "sent_to": chat_id,
             "using_instance": target_id
         }
     except Exception as e:
-        logger.error(f"[DIAGNOSTIC] Error: {str(e)}")
-        return {"status": "error", "message": str(e)}
+        logger.error(f"[DIAGNOSTIC] Request Exception: {str(e)}")
+        return {"status": "error", "message": f"Request failed: {str(e)}"}
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
