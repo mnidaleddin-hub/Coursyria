@@ -85,12 +85,20 @@ async def verify_email_otp_dep():
 # ----------------------------
 
 @router.post("/test-wa-direct")
-async def test_wa_direct(phone: str = Body(..., embed=True), message: str = Body("Test from Courseria", embed=True)):
-    """Diagnostic endpoint to test Green API directly with server credentials"""
-    if not settings.WA_ID_INSTANCE or not settings.WA_TOKEN_INSTANCE:
-        return {"status": "error", "message": "WA credentials not configured on server"}
+async def test_wa_direct(
+    phone: str = Body(..., embed=True), 
+    message: str = Body("Test from Courseria", embed=True),
+    id_instance: Optional[str] = Body(None, embed=True),
+    token: Optional[str] = Body(None, embed=True)
+):
+    """Diagnostic endpoint to test Green API directly with provided or server credentials"""
+    target_id = id_instance or settings.WA_ID_INSTANCE
+    target_token = token or settings.WA_TOKEN_INSTANCE
+    
+    if not target_id or not target_token:
+        return {"status": "error", "message": "WA credentials not provided and not on server"}
         
-    url = f"{settings.WA_API_URL}/waInstance{settings.WA_ID_INSTANCE}/sendMessage/{settings.WA_TOKEN_INSTANCE}"
+    url = f"{settings.WA_API_URL}/waInstance{target_id}/sendMessage/{target_token}"
     
     # Format phone
     clean_phone = phone.replace('+', '').replace(' ', '').replace('-', '')
@@ -103,12 +111,13 @@ async def test_wa_direct(phone: str = Body(..., embed=True), message: str = Body
     
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(url, json=payload, timeout=20.0)
+            response = await client.post(url, json=payload, timeout=20.0)
             return {
-                "status": "success" if resp.status_code == 200 else "error",
-                "http_status": resp.status_code,
-                "response": resp.json() if resp.status_code == 200 else resp.text,
-                "sent_to": chat_id
+                "status": "success" if response.status_code == 200 else "error",
+                "http_status": response.status_code,
+                "response": response.json() if response.status_code == 200 else response.text,
+                "sent_to": chat_id,
+                "using_instance": target_id
             }
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -233,42 +242,29 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
 
     # 6. Message configuration
     message_text = f"🔒 رمز التحقق الخاص بك لتفعيل حسابك في منصة كورسيريا التعليمية هو: {otp_code}\n\nهذا الرمز صالح لمدة 10 دقائق."
-
-    # 7. Send via Green API (WhatsApp) or Telegram
+    
+    # Selection of API credentials based on channel
     if channel == "whatsapp":
         api_url = settings.WA_API_URL
         id_instance = settings.WA_ID_INSTANCE
         token_instance = settings.WA_TOKEN_INSTANCE
-        # GREEN API FIX: Use phone_number without '+' followed by @c.us
+        # GREEN API FIX: Ensure chat_id is correct for WhatsApp
         chat_id = clean_number_for_api.replace('+', '') + "@c.us"
-        logger.info(f"WhatsApp Chat ID: {chat_id}")
-    else:
-        # Telegram via Green API or Direct (Assuming Green API based on config)
+    elif channel == "telegram":
         api_url = settings.TG_API_URL
         id_instance = settings.TG_ID_INSTANCE
         token_instance = settings.TG_TOKEN_INSTANCE
-        
-        # DEBUG LOGS FOR TELEGRAM CREDENTIALS
-        logger.info(f"TELEGRAM_ID_INSTANCE: {id_instance}")
-        if token_instance:
-            logger.info(f"TELEGRAM_TOKEN_INSTANCE is set (Length: {len(token_instance)})")
-        else:
-            logger.error("TELEGRAM_TOKEN_INSTANCE IS EMPTY OR NULL")
-
-        # TELEGRAM USERNAME LOGIC: Use @username if available, else fallback to phone@c.us
+        # For Telegram, we use @username if available, else phone@t.me
         tg_username = user_record.get("telegram_username")
         if contact.startswith("@"):
             chat_id = contact
-            logger.info(f"Using direct Telegram Username from contact: {chat_id}")
         elif tg_username:
-            if not tg_username.startswith("@"):
-                tg_username = f"@{tg_username}"
-            chat_id = tg_username
-            logger.info(f"Using Telegram Username from DB: {chat_id}")
+            chat_id = f"@{tg_username}" if not tg_username.startswith("@") else tg_username
         else:
-            # Fallback to phone format (Removing '+' for Green API compatibility)
-            chat_id = clean_number_for_api.replace('+', '') + "@c.us"
-            logger.info(f"No Telegram Username found, using fallback: {chat_id}")
+            chat_id = clean_number_for_api.replace('+', '') + "@t.me"
+    else:
+        logger.error(f"Unsupported channel: {channel}")
+        raise HTTPException(status_code=400, detail="قناة إرسال غير مدعومة")
     
     if not id_instance or not token_instance:
         logger.error(f"Missing credentials for {channel}")
