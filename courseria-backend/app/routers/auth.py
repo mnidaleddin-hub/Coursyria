@@ -102,52 +102,31 @@ async def test_wa_direct(
     id_instance: Optional[str] = Body(None, embed=True),
     token: Optional[str] = Body(None, embed=True)
 ):
-    """Diagnostic endpoint to test Green API directly with provided or server credentials"""
+    """Diagnostic endpoint to test Green API directly"""
+    # Simple direct dict return to avoid any schema/setting issues during debug
     try:
-        # Check if settings are accessible
-        try:
-            from app.config import get_settings
-            current_settings = get_settings()
-        except Exception as se:
-            return {"status": "error", "message": f"Settings error: {str(se)}"}
-
-        target_id = id_instance or current_settings.WA_ID_INSTANCE
-        target_token = token or current_settings.WA_TOKEN_INSTANCE
+        # Use provided or hardcoded for debug
+        t_id = id_instance or "7107621915"
+        t_token = token or "671698dabcf043ed84bc4726b52d242f6035b4f0cc3b4a4f81"
         
-        if not target_id or not target_token:
-            return {"status": "error", "message": f"WA credentials missing: ID={target_id}, TokenLen={len(target_token) if target_token else 0}"}
-            
-        url = f"https://api.green-api.com/waInstance{target_id}/sendMessage/{target_token}"
-        
-        # Format phone
+        url = f"https://api.green-api.com/waInstance{t_id}/sendMessage/{t_token}"
         clean_phone = str(phone).replace('+', '').replace(' ', '').replace('-', '')
-        chat_id = f"{clean_phone}@c.us"
         
         payload = {
-            "chatId": chat_id,
+            "chatId": f"{clean_phone}@c.us",
             "message": str(message)
         }
         
-        headers = {"Content-Type": "application/json"}
-        
-        # Sync request for diagnostics
         import requests
-        response = requests.post(url, json=payload, headers=headers, timeout=20.0)
+        r = requests.post(url, json=payload, timeout=20.0)
         
-        try:
-            res_data = response.json()
-        except:
-            res_data = response.text
-            
         return {
-            "status": "success" if response.status_code == 200 else "error",
-            "http_status": response.status_code,
-            "response": res_data,
-            "sent_to": chat_id,
-            "url_used": f"https://api.green-api.com/waInstance{target_id}/sendMessage/****"
+            "debug_status": r.status_code,
+            "debug_response": r.text,
+            "target": f"{clean_phone}@c.us"
         }
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"debug_error": str(e)}
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
