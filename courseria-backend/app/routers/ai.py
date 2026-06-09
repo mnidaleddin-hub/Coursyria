@@ -35,7 +35,8 @@ async def call_openrouter(messages: list, model: str = None, json_mode: bool = F
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            response = await client.post(settings.OPENROUTER_URL, headers=headers, json=payload)
+            full_url = f"{settings.OPENROUTER_URL}/chat/completions"
+            response = await client.post(full_url, headers=headers, json=payload)
             response.raise_for_status()
             return response.json()
         except Exception as e:

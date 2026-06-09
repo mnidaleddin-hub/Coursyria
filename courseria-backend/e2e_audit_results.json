@@ -1,0 +1,747 @@
+[
+  {
+    "name": "Health Check",
+    "status": 200,
+    "duration": 2119.489908218384,
+    "success": true,
+    "response": {
+      "status": "ok",
+      "timestamp": "2026-06-09T13:43:33.979637",
+      "database": "connected",
+      "version": "1.1.0-mvp",
+      "uptime": 621.387953
+    }
+  },
+  {
+    "name": "Authentication",
+    "status": 200,
+    "duration": 498.2759952545166,
+    "success": true,
+    "response": {
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MWNkZjIxMy1jYzVmLTQ4NzEtYTQyNS1iMjZiYWJkYjVlNjgiLCJyb2xlIjoiYWRtaW4iLCJpc19hZG1pbiI6dHJ1ZSwidHlwZSI6ImJhY2tkb29yIiwiZXhwIjoxNzgxMDk5MDE0fQ.zgxz6EqN4gJpnciPeTcBmfKzo75vLaniWh7oNcSB1XY",
+      "token_type": "bearer",
+      "user": {
+        "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "phone_number": null,
+        "email": "developer@coursyria.com",
+        "role": "admin",
+        "created_at": "2026-06-09T13:43:34.488589"
+      }
+    }
+  },
+  {
+    "name": "Get Profile",
+    "status": 200,
+    "duration": 699.3517875671387,
+    "success": true,
+    "response": {
+      "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+      "phone_number": "+963930111876",
+      "email": "m.nidaleddin@gmail.com",
+      "full_name": "Auditor User",
+      "created_at": "2026-06-06T12:53:06.449422+00:00",
+      "is_verified": false,
+      "role": "student",
+      "channel": "email",
+      "device_id": "web",
+      "telegram_username": null
+    }
+  },
+  {
+    "name": "Fetch Courses",
+    "status": 200,
+    "duration": 661.733865737915,
+    "success": true,
+    "response": [
+      {
+        "id": "a1b2c3d4-e5f6-7a8b-9c10-111213141516",
+        "title": "التحليل الرياضي - الجزء الأول",
+        "description": "هذا الكورس مخصص لطلاب البكالوريا في سوريا، يشمل الشرح الكامل للمنهاج مع حل كافة النماذج الامتحانية والأسئلة الدورات السابقة لضمان العلامة التامة.",
+        "image_url": null,
+        "price": 75000.0,
+        "teacher_id": null,
+        "difficulty": "medium",
+        "duration_hours": 0,
+        "is_published": true,
+        "created_at": "2026-05-12T11:24:05.845256Z",
+        "lessons": [
+          {
+            "id": "e3190fa4-3841-47a8-8812-b13e33039431",
+            "course_id": "a1b2c3d4-e5f6-7a8b-9c10-111213141516",
+            "title": "المقدمة ونهاية متتالية",
+            "content": null,
+            "video_url": "https://www.w3schools.com/html/mov_bbb.mp4",
+            "duration_minutes": 0,
+            "order_index": 1,
+            "is_free": true,
+            "created_at": null,
+            "likes_count": 38,
+            "views_count": 142,
+            "thumbnail_url": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=500",
+            "video_description": "في هذا الدرس، سنقوم بشرح المفهوم الأساسي وتأسيس القواعد الجبرية والانطلاق في المنهاج. تأكد من تدوين الملاحظات.",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          },
+          {
+            "id": "c61b063e-80c7-431f-a436-bf53721b0187",
+            "course_id": "a1b2c3d4-e5f6-7a8b-9c10-111213141516",
+            "title": "مبرهنة الإحاطة وتطبيقاتها",
+            "content": null,
+            "video_url": "https://www.w3schools.com/html/mov_bbb.mp4",
+            "duration_minutes": 0,
+            "order_index": 2,
+            "is_free": false,
+            "created_at": null,
+            "likes_count": 38,
+            "views_count": 142,
+            "thumbnail_url": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=500",
+            "video_description": "في هذا الدرس، سنقوم بشرح المفهوم الأساسي وتأسيس القواعد الجبرية والانطلاق في المنهاج. تأكد من تدوين الملاحظات.",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          }
+        ]
+      },
+      {
+        "id": "96b36ee5-4ec8-46a7-a1df-97e66f8b6fa3",
+        "title": "الفيزياء الحديثة - أساسيات الكم والنسبية",
+        "description": "دورة شاملة في الفيزياء الحديثة تشمل النظرية النسبية وميكانيكا الكم مع تطبيقات عملية",
+        "image_url": null,
+        "price": 85000.0,
+        "teacher_id": null,
+        "difficulty": "medium",
+        "duration_hours": 0,
+        "is_published": true,
+        "created_at": "2026-06-06T15:18:20.656763Z",
+        "lessons": [
+          {
+            "id": "b9120073-fd7f-4d82-9a6d-774b933f61c6",
+            "course_id": "96b36ee5-4ec8-46a7-a1df-97e66f8b6fa3",
+            "title": "مقدمة في النظرية النسبية",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 1,
+            "is_free": true,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "تعريف بمبادئ النظرية النسبية لأينشتاين",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          },
+          {
+            "id": "c97f957c-c11c-4a08-98c3-38e4b0bd6e15",
+            "course_id": "96b36ee5-4ec8-46a7-a1df-97e66f8b6fa3",
+            "title": "تمدد الزمن وانكماش الطول",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 2,
+            "is_free": false,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "تطبيقات النسبية الخاصة",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          },
+          {
+            "id": "c22c4120-17b2-4dea-8cae-574162d00b70",
+            "course_id": "96b36ee5-4ec8-46a7-a1df-97e66f8b6fa3",
+            "title": "ازدواجية الموجة والجسيم",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 3,
+            "is_free": false,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "مقدمة في ميكانيكا الكم",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          }
+        ]
+      },
+      {
+        "id": "a3ff3a0d-2115-440a-8c64-d593a18441d9",
+        "title": "التفاضل والتكامل - المستوى المتقدم",
+        "description": "دورة متقدمة في التفاضل والتكامل تشمل النهايات، المشتقات، التكاملات، وتطبيقاتها الهندسية",
+        "image_url": null,
+        "price": 95000.0,
+        "teacher_id": null,
+        "difficulty": "medium",
+        "duration_hours": 0,
+        "is_published": true,
+        "created_at": "2026-06-06T15:18:20.656763Z",
+        "lessons": [
+          {
+            "id": "0da18611-94e4-4435-b230-3e44675cd770",
+            "course_id": "a3ff3a0d-2115-440a-8c64-d593a18441d9",
+            "title": "مقدمة في النهايات",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 1,
+            "is_free": true,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "تعريف النهايات وطرق حسابها",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          },
+          {
+            "id": "72bd6daa-c8bf-44ff-9682-89710e394bbc",
+            "course_id": "a3ff3a0d-2115-440a-8c64-d593a18441d9",
+            "title": "المشتقات وقواعد الاشتقاق",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 2,
+            "is_free": false,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "قواعد الاشتقاق الأساسية",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          },
+          {
+            "id": "a122cd07-6c14-4319-946e-41362ad9a26e",
+            "course_id": "a3ff3a0d-2115-440a-8c64-d593a18441d9",
+            "title": "تطبيقات المشتقات",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 3,
+            "is_free": false,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "القيم العظمى والصغرى، التقعر",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          },
+          {
+            "id": "b71435b3-c545-4d2a-96cd-d53611a80a49",
+            "course_id": "a3ff3a0d-2115-440a-8c64-d593a18441d9",
+            "title": "مقدمة في التكامل",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 4,
+            "is_free": false,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "التكامل غير المحدد والمحدد",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          }
+        ]
+      },
+      {
+        "id": "3c6c2bb6-213c-472d-a322-91661c51bcd1",
+        "title": "الكيمياء العضوية - الروابط والتفاعلات",
+        "description": "دورة متكاملة في الكيمياء العضوية تشمل أنواع الروابط، المجموعات الوظيفية، وآليات التفاعلات",
+        "image_url": null,
+        "price": 99000.0,
+        "teacher_id": null,
+        "difficulty": "medium",
+        "duration_hours": 0,
+        "is_published": true,
+        "created_at": "2026-06-06T15:18:20.656763Z",
+        "lessons": [
+          {
+            "id": "a5eb0bac-76e6-4c92-aca0-b256dc827e5b",
+            "course_id": "3c6c2bb6-213c-472d-a322-91661c51bcd1",
+            "title": "مقدمة في الكيمياء العضوية",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 1,
+            "is_free": true,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "تعريف المركبات العضوية وأهميتها",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          },
+          {
+            "id": "89f211e0-5e74-4460-b130-b6f00d85182f",
+            "course_id": "3c6c2bb6-213c-472d-a322-91661c51bcd1",
+            "title": "المجموعات الوظيفية",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 2,
+            "is_free": false,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "تصنيف المركبات حسب المجموعات الوظيفية",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          },
+          {
+            "id": "feb918b2-e91f-4b21-9eb8-9afc51aa1dd5",
+            "course_id": "3c6c2bb6-213c-472d-a322-91661c51bcd1",
+            "title": "تفاعلات الإحلال",
+            "content": null,
+            "video_url": null,
+            "duration_minutes": 0,
+            "order_index": 3,
+            "is_free": false,
+            "created_at": null,
+            "likes_count": 0,
+            "views_count": 0,
+            "thumbnail_url": null,
+            "video_description": "آليات تفاعلات الإحلال العضوية",
+            "worksheets": [],
+            "solved_tests": [],
+            "unsolved_tests": [],
+            "exam_reviews": [],
+            "quiz_questions": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Course Details",
+    "status": 200,
+    "duration": 576.0774612426758,
+    "success": true,
+    "response": {
+      "id": "a1b2c3d4-e5f6-7a8b-9c10-111213141516",
+      "title": "التحليل الرياضي - الجزء الأول",
+      "description": "هذا الكورس مخصص لطلاب البكالوريا في سوريا، يشمل الشرح الكامل للمنهاج مع حل كافة النماذج الامتحانية والأسئلة الدورات السابقة لضمان العلامة التامة.",
+      "image_url": null,
+      "price": 75000.0,
+      "teacher_id": null,
+      "difficulty": "medium",
+      "duration_hours": 0,
+      "is_published": true,
+      "created_at": "2026-05-12T11:24:05.845256Z",
+      "lessons": [
+        {
+          "id": "e3190fa4-3841-47a8-8812-b13e33039431",
+          "course_id": "a1b2c3d4-e5f6-7a8b-9c10-111213141516",
+          "title": "المقدمة ونهاية متتالية",
+          "content": null,
+          "video_url": "https://www.w3schools.com/html/mov_bbb.mp4",
+          "duration_minutes": 0,
+          "order_index": 1,
+          "is_free": true,
+          "created_at": null,
+          "likes_count": 38,
+          "views_count": 142,
+          "thumbnail_url": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=500",
+          "video_description": "في هذا الدرس، سنقوم بشرح المفهوم الأساسي وتأسيس القواعد الجبرية والانطلاق في المنهاج. تأكد من تدوين الملاحظات.",
+          "worksheets": [],
+          "solved_tests": [],
+          "unsolved_tests": [],
+          "exam_reviews": [],
+          "quiz_questions": []
+        },
+        {
+          "id": "c61b063e-80c7-431f-a436-bf53721b0187",
+          "course_id": "a1b2c3d4-e5f6-7a8b-9c10-111213141516",
+          "title": "مبرهنة الإحاطة وتطبيقاتها",
+          "content": null,
+          "video_url": "https://www.w3schools.com/html/mov_bbb.mp4",
+          "duration_minutes": 0,
+          "order_index": 2,
+          "is_free": false,
+          "created_at": null,
+          "likes_count": 38,
+          "views_count": 142,
+          "thumbnail_url": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=500",
+          "video_description": "في هذا الدرس، سنقوم بشرح المفهوم الأساسي وتأسيس القواعد الجبرية والانطلاق في المنهاج. تأكد من تدوين الملاحظات.",
+          "worksheets": [],
+          "solved_tests": [],
+          "unsolved_tests": [],
+          "exam_reviews": [],
+          "quiz_questions": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "Create Post",
+    "status": 201,
+    "duration": 813.5986328125,
+    "success": true,
+    "response": {
+      "id": "b6d8a88d-1bf8-4f57-ba85-ef001ad0ab7d",
+      "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+      "content": "هذا اختبار شامل للمجتمع – هل يعمل التطبيق بكفاءة؟",
+      "image_url": null,
+      "likes_count": 0,
+      "comments_count": 0,
+      "created_at": "2026-06-09T13:43:36.850911+00:00",
+      "updated_at": "2026-06-09T13:43:37.165425+00:00"
+    }
+  },
+  {
+    "name": "Fetch Posts",
+    "status": 200,
+    "duration": 645.6563472747803,
+    "success": true,
+    "response": [
+      {
+        "id": "b6d8a88d-1bf8-4f57-ba85-ef001ad0ab7d",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "هذا اختبار شامل للمجتمع – هل يعمل التطبيق بكفاءة؟",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T13:43:36.850911+00:00",
+        "updated_at": "2026-06-09T13:43:37.165425+00:00"
+      },
+      {
+        "id": "99d506b0-6149-42e3-a24a-db470136df79",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Live Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T13:08:45.024377+00:00",
+        "updated_at": "2026-06-09T13:08:45.35511+00:00"
+      },
+      {
+        "id": "a4078396-47f3-4ed6-83ae-e92557e19f5f",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:39:19.083999+00:00",
+        "updated_at": "2026-06-09T12:39:20.112776+00:00"
+      },
+      {
+        "id": "0868e6c8-95b2-4438-95ac-2662d17d4d2b",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:32:58.421613+00:00",
+        "updated_at": "2026-06-09T12:32:59.400891+00:00"
+      },
+      {
+        "id": "512b2667-9a0d-4400-9d11-a3a30ebb5f1b",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:17:06.47362+00:00",
+        "updated_at": "2026-06-09T12:17:07.536251+00:00"
+      },
+      {
+        "id": "2728c838-3a54-4fbd-b32c-f5dd9ad567e9",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:15:50.136554+00:00",
+        "updated_at": "2026-06-09T12:15:51.101668+00:00"
+      },
+      {
+        "id": "2272acb6-f892-421a-b123-a3423fceedab",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:15:21.374026+00:00",
+        "updated_at": "2026-06-09T12:15:22.35093+00:00"
+      },
+      {
+        "id": "5f74f849-c06f-4f1c-8fd2-b25b0f01e6aa",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:14:54.257671+00:00",
+        "updated_at": "2026-06-09T12:14:55.22545+00:00"
+      },
+      {
+        "id": "f8b36440-18c3-4d72-9bab-95a2554bf14c",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:14:23.152488+00:00",
+        "updated_at": "2026-06-09T12:14:24.112039+00:00"
+      },
+      {
+        "id": "7e4607e9-6668-48c1-8921-d1066a91767a",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:13:55.325359+00:00",
+        "updated_at": "2026-06-09T12:13:56.318808+00:00"
+      },
+      {
+        "id": "6e209ca1-4763-4397-b56f-d12b3affbd31",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:13:28.359355+00:00",
+        "updated_at": "2026-06-09T12:13:29.334493+00:00"
+      },
+      {
+        "id": "6ba720fb-b00e-46f3-b50f-0f5a06a3a2f3",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:12:50.020213+00:00",
+        "updated_at": "2026-06-09T12:12:50.989376+00:00"
+      },
+      {
+        "id": "1505c726-ceb3-4f07-97ff-b0894df09504",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:11:37.542806+00:00",
+        "updated_at": "2026-06-09T12:11:38.515573+00:00"
+      },
+      {
+        "id": "54ff9ebe-5946-4a76-ab1f-62cd5fe72643",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:09:01.065191+00:00",
+        "updated_at": "2026-06-09T12:09:02.045231+00:00"
+      },
+      {
+        "id": "8669a414-c07b-4cd6-9135-337e32628217",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:08:27.151875+00:00",
+        "updated_at": "2026-06-09T12:08:28.1295+00:00"
+      },
+      {
+        "id": "52510710-4952-42fe-9e15-dd22a6a1d66e",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "Audit Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T12:04:45.113348+00:00",
+        "updated_at": "2026-06-09T12:04:46.098088+00:00"
+      },
+      {
+        "id": "fee769d4-e643-4f8f-b51b-ab1f483e36e7",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "MVP Integration Test Post",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-09T11:57:46.250236+00:00",
+        "updated_at": "2026-06-09T11:57:47.304838+00:00"
+      },
+      {
+        "id": "fa2ad61a-8021-47b5-9785-b1a48f3f4c3c",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "مرحباً! أنا محمد نضال الدين، هذا أول بوست لي في المجتمع 🎉",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-08T17:08:54.331651+00:00",
+        "updated_at": "2026-06-08T17:08:54.331651+00:00"
+      },
+      {
+        "id": "c8cf1144-d558-4e5d-8946-de7151db9160",
+        "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+        "content": "مرحباً! أنا محمد نضال الدين، هذا أول بوست لي 🎉",
+        "image_url": null,
+        "likes_count": 0,
+        "comments_count": 0,
+        "created_at": "2026-06-08T17:08:26.608462+00:00",
+        "updated_at": "2026-06-08T17:08:26.608462+00:00"
+      }
+    ]
+  },
+  {
+    "name": "Add Comment",
+    "status": 200,
+    "duration": 1041.1057472229004,
+    "success": true,
+    "response": {
+      "id": "f6fad5a3-b133-4771-a3d9-2776825ac579",
+      "post_id": "b6d8a88d-1bf8-4f57-ba85-ef001ad0ab7d",
+      "user_id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+      "content": "تعليق تجريبي من المستخدم الآلي.",
+      "status": "mock_success"
+    }
+  },
+  {
+    "name": "Wallet Balance",
+    "status": 200,
+    "duration": 557.4440956115723,
+    "success": true,
+    "response": {
+      "balance": 0
+    }
+  },
+  {
+    "name": "Use Promo Code",
+    "status": 200,
+    "duration": 546.1084842681885,
+    "success": true,
+    "response": {
+      "status": "error",
+      "message": "الكود غير صالح"
+    }
+  },
+  {
+    "name": "AI Chat",
+    "status": 500,
+    "duration": 536.4875793457031,
+    "success": false,
+    "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
+  },
+  {
+    "name": "AI Summarize",
+    "status": 500,
+    "duration": 645.2367305755615,
+    "success": false,
+    "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
+  },
+  {
+    "name": "AI Generate Quiz",
+    "status": 500,
+    "duration": 569.3161487579346,
+    "success": false,
+    "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
+  },
+  {
+    "name": "AI Explain Simple",
+    "status": 500,
+    "duration": 510.5874538421631,
+    "success": false,
+    "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
+  },
+  {
+    "name": "AI Flashcards",
+    "status": 500,
+    "duration": 608.4399223327637,
+    "success": false,
+    "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
+  },
+  {
+    "name": "AI Grammar",
+    "status": 500,
+    "duration": 679.1160106658936,
+    "success": false,
+    "response": "{\"detail\":\"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/chat/completions'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404\"}"
+  },
+  {
+    "name": "Generate Mock Exam",
+    "status": 200,
+    "duration": 376.12366676330566,
+    "success": true,
+    "response": []
+  },
+  {
+    "name": "Chat Rooms",
+    "status": 200,
+    "duration": 694.4098472595215,
+    "success": true,
+    "response": []
+  },
+  {
+    "name": "Update Profile",
+    "status": 200,
+    "duration": 527.4360179901123,
+    "success": true,
+    "response": {
+      "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+      "phone_number": "+963930111876",
+      "email": "m.nidaleddin@gmail.com",
+      "full_name": "مستخدم اختبار شامل",
+      "created_at": "2026-06-06T12:53:06.449422+00:00",
+      "is_verified": false,
+      "role": "student",
+      "channel": "email",
+      "device_id": "web",
+      "telegram_username": null
+    }
+  },
+  {
+    "name": "User Stats",
+    "status": 200,
+    "duration": 541.3382053375244,
+    "success": true,
+    "response": {
+      "points": 0,
+      "purchased_courses_count": 0,
+      "average_exam_score": 0,
+      "rank": "طالب جديد",
+      "achievements": []
+    }
+  }
+]

@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     # AI settings
     OPENROUTER_API_KEY: str
-    OPENROUTER_URL: str = "https://openrouter.ai/api/v1/chat/completions"
+    OPENROUTER_URL: str = "https://openrouter.ai/api/v1"
     DEFAULT_AI_MODEL: str = "google/gemini-2.0-flash-exp:free"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
