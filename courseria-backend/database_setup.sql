@@ -15,29 +15,33 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- --- MIGRATIONS 2026-06-09 ---
+-- --- MIGRATIONS 2026-06-09 (V2 - FIXES) ---
 
--- 1. Promo Codes Table (Updated)
-CREATE TABLE IF NOT EXISTS public.promo_codes ( 
+-- 1. Fix missing FK for posts-users
+ALTER TABLE public.posts ADD CONSTRAINT fk_posts_users FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+-- 2. Make course_id optional in comments
+ALTER TABLE public.comments ALTER COLUMN course_id DROP NOT NULL;
+
+-- 3. Create missing chat_rooms table
+CREATE TABLE IF NOT EXISTS public.chat_rooms ( 
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), 
-    code TEXT UNIQUE NOT NULL, 
-    course_id UUID REFERENCES public.courses(id), 
-    discount_percent INT DEFAULT 0, 
-    fixed_amount DECIMAL(10,2) DEFAULT 0, 
-    valid_until TIMESTAMPTZ, 
+    name TEXT NOT NULL, 
+    course_id UUID REFERENCES public.courses(id) ON DELETE CASCADE, 
+    created_by UUID REFERENCES public.users(id), 
     is_active BOOLEAN DEFAULT true, 
-    max_uses INT DEFAULT 1, 
-    used_count INT DEFAULT 0, 
     created_at TIMESTAMPTZ DEFAULT NOW() 
-); 
+);
 
--- 2. Comments Table (Add parent_comment_id)
-ALTER TABLE public.comments 
-ADD COLUMN IF NOT EXISTS parent_comment_id UUID REFERENCES public.comments(id); 
+-- 4. Ensure ai_chat_sessions exists (if used as fallback)
+CREATE TABLE IF NOT EXISTS public.ai_chat_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    title TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- 3. Quizzes Table (Add grade)
-ALTER TABLE public.quizzes 
-ADD COLUMN IF NOT EXISTS grade TEXT DEFAULT 'bac_scientific';
+-- --- END MIGRATIONS ---
 
 -- 2. Courses Table
 CREATE TABLE IF NOT EXISTS courses (

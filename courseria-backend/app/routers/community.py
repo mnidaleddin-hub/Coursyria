@@ -96,6 +96,15 @@ async def add_comment(
             "content": content
         }
         
+        # Check if course_id is needed or if we should fetch it from the post
+        try:
+            # Try to get course_id if it's a mandatory column in DB
+            post_res = db.table("posts").select("course_id").eq("id", post_id).maybe_single().execute()
+            if post_res.data and post_res.data.get("course_id"):
+                comment_data["course_id"] = post_res.data["course_id"]
+        except:
+            pass
+
         try:
             response = db.table("comments").insert(comment_data).execute()
             if response.data:

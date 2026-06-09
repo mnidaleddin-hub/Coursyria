@@ -9,10 +9,19 @@ router = APIRouter()
 async def get_chat_rooms(user=Depends(get_current_user), db=Depends(get_supabase_client)):
     """جلب غرف الدردشة الخاصة بالمستخدم"""
     try:
-        # User is part of a room if they are either 'student_id' or 'teacher_id'
-        # or if the room is public
-        response = db.table("chat_rooms").select("*").or_(f"student_id.eq.{user['user_id']},is_public.eq.true").execute()
-        return response.data
+        # Try primary table 'chat_rooms'
+        try:
+            response = db.table("chat_rooms").select("*").or_(f"student_id.eq.{user['user_id']},is_public.eq.true").execute()
+            return response.data
+        except Exception as e1:
+            print(f"Primary chat_rooms table failed, trying fallback: {e1}")
+            # Fallback to 'ai_chat_sessions' if 'chat_rooms' doesn't exist
+            try:
+                response = db.table("ai_chat_sessions").select("*").eq("user_id", user["user_id"]).execute()
+                return response.data
+            except Exception as e2:
+                print(f"Fallback ai_chat_sessions table also failed: {e2}")
+                return []
     except Exception as e:
         print(f"Fetch Chat Rooms Error: {e}")
         # Return empty list if table or query fails
