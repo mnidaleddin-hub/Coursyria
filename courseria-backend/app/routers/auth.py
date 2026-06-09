@@ -103,29 +103,26 @@ async def test_wa_direct(
     token: Optional[str] = Body(None, embed=True)
 ):
     """Diagnostic endpoint to test Green API directly with provided or server credentials"""
-    target_id = id_instance or settings.WA_ID_INSTANCE
-    target_token = token or settings.WA_TOKEN_INSTANCE
-    
-    if not target_id or not target_token:
-        return {"status": "error", "message": "WA credentials not provided and not on server"}
-        
-    url = f"{settings.WA_API_URL}/waInstance{target_id}/sendMessage/{target_token}"
-    
-    # Format phone
-    clean_phone = phone.replace('+', '').replace(' ', '').replace('-', '')
-    chat_id = f"{clean_phone}@c.us"
-    
-    payload = {
-        "chatId": chat_id,
-        "message": message
-    }
-    
-    headers = {"Content-Type": "application/json"}
-    
-    logger.info(f"[DIAGNOSTIC] Sending to WA: {url}")
-    logger.info(f"[DIAGNOSTIC] Payload: {json.dumps(payload)}")
-    
     try:
+        target_id = id_instance or settings.WA_ID_INSTANCE
+        target_token = token or settings.WA_TOKEN_INSTANCE
+        
+        if not target_id or not target_token:
+            return {"status": "error", "message": "WA credentials not provided and not on server"}
+            
+        url = f"{settings.WA_API_URL}/waInstance{target_id}/sendMessage/{target_token}"
+        
+        # Format phone
+        clean_phone = str(phone).replace('+', '').replace(' ', '').replace('-', '')
+        chat_id = f"{clean_phone}@c.us"
+        
+        payload = {
+            "chatId": chat_id,
+            "message": str(message)
+        }
+        
+        headers = {"Content-Type": "application/json"}
+        
         # Use requests (synchronous but reliable for diagnostic)
         logger.info(f"POSTing to Green API: {url}")
         response = requests.post(url, json=payload, headers=headers, timeout=20.0)
@@ -146,8 +143,10 @@ async def test_wa_direct(
             "using_instance": target_id
         }
     except Exception as e:
-        logger.error(f"[DIAGNOSTIC] Request Exception: {str(e)}")
-        return {"status": "error", "message": f"Request failed: {str(e)}"}
+        import traceback
+        error_detail = traceback.format_exc()
+        logger.error(f"[DIAGNOSTIC] CRITICAL Error: {error_detail}")
+        return {"status": "error", "message": str(e), "trace": error_detail[:200]}
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
