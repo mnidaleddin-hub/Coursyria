@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request, Body
-from app.models.auth_schemas import OTPRequest, OTPVerify, Token, UserBase, LoginRequest, RegisterRequest, EmailOTPRequest
+from app.models.auth_schemas import OTPRequest, OTPVerify, Token, UserBase, LoginRequest, RegisterRequest
 from app.database import get_db, supabase_public, supabase_admin
 from app.dependencies import get_current_user, get_supabase_client
 from app.auth_utils import create_access_token
