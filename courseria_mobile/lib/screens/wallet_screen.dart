@@ -15,31 +15,28 @@ class WalletScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgCanvasStart,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildAppBar(),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(24.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildBalanceCard(),
-                  SizedBox(height: 32.h),
-                  _buildActivityChart(),
-                  SizedBox(height: 32.h),
-                  _buildActionSection(),
-                  SizedBox(height: 32.h),
-                  _buildTransactionHistory(),
-                ],
-              ),
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        _buildAppBar(),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(24.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBalanceCard(),
+                SizedBox(height: 32.h),
+                _buildActivityChart(),
+                SizedBox(height: 32.h),
+                _buildActionSection(),
+                SizedBox(height: 32.h),
+                _buildTransactionHistory(),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

@@ -12,6 +12,8 @@ import 'course_catalog_screen.dart';
 import 'wallet_screen.dart';
 import 'settings_screen.dart';
 import 'teacher_dashboard_screen.dart';
+import 'student_dashboard_screen.dart';
+import '../controllers/course_controller.dart';
 import '../controllers/auth_controller.dart';
 import '../core/constants/constants.dart';
 
@@ -31,6 +33,7 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
     HomeScreen(),
     const CourseCatalogScreen(),
     const CommunityScreen(),
+    const GroupsScreen(),
     WalletScreen(),
     const SettingsScreen(),
   ];
@@ -53,6 +56,12 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
       selectedIcon: PhosphorIcons.usersThree(PhosphorIconsStyle.fill),
       label: "المجتمع",
       selectedIconWidget: PhosphorIcon(PhosphorIcons.usersThree(PhosphorIconsStyle.fill)).animate().scale(duration: 200.ms),
+    ),
+    NavigationDestinationData(
+      icon: PhosphorIcons.chatCircleDots(),
+      selectedIcon: PhosphorIcons.chatCircleDots(PhosphorIconsStyle.fill),
+      label: "المجموعات",
+      selectedIconWidget: PhosphorIcon(PhosphorIcons.chatCircleDots(PhosphorIconsStyle.fill)).animate().scale(duration: 200.ms),
     ),
     NavigationDestinationData(
       icon: PhosphorIcons.wallet(),
@@ -134,45 +143,93 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Animated Gradient Background
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    context.theme.scaffoldBackgroundColor,
-                    context.theme.primaryColor.withOpacity(0.05),
-                  ],
-                ),
-              ),
-            ).animate(onPlay: (c) => c.repeat(reverse: true))
-             .shimmer(duration: const Duration(seconds: 5), color: AppColors.accentTeal.withOpacity(0.05)),
-          ),
-          Obx(() => ResponsiveWrapper(
-            currentIndex: _currentIndex.value,
-            onIndexChanged: (index) => _currentIndex.value = index,
-            destinations: _destinations,
-            child: PageTransitionSwitcher(
-              duration: const Duration(milliseconds: 400),
-              transitionBuilder: (child, animation, secondaryAnimation) {
-                return FadeThroughTransition(
-                  animation: animation,
-                  secondaryAnimation: secondaryAnimation,
-                  child: child,
-                );
-              },
-              child: _pages[_currentIndex.value],
+    return Obx(() {
+      String title = "الرئيسية";
+      List<Widget>? actions;
+
+      switch (_currentIndex.value) {
+        case 0:
+          title = "كورسيريا";
+          break;
+        case 1:
+          title = "تصفح الكورسات";
+          final courseController = Get.find<CourseController>();
+          actions = [
+            Obx(() => courseController.isAiSorting.value 
+              ? const Center(child: Padding(padding: EdgeInsets.all(12.0), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
+              : IconButton(
+                  icon: const Icon(Icons.auto_awesome_rounded, color: Colors.amber),
+                  onPressed: () => courseController.sortCoursesByAI(),
+                  tooltip: "رتب حسب اهتماماتي (AI)",
+                )),
+          ];
+          break;
+        case 2:
+          title = "مجتمع التعلم";
+          break;
+        case 3:
+          title = "المحفظة الرقمية";
+          break;
+        case 4:
+          title = "الإعدادات";
+          break;
+      }
+
+      return Scaffold(
+        appBar: _currentIndex.value == 0 
+          ? null 
+          : AppBar(
+              title: Text(title, style: AppTextStyles.header.copyWith(fontSize: 18.sp, color: Colors.white)),
+              backgroundColor: AppColors.primaryNavy,
+              elevation: 0,
+              centerTitle: true,
+              actions: actions,
             ),
-          )),
-          _buildFloatingMenu(),
-        ],
-      ),
-    );
+        body: ResponsiveWrapper(
+          currentIndex: _currentIndex.value,
+          onIndexChanged: (index) => _currentIndex.value = index,
+          destinations: _destinations,
+          child: Stack(
+            children: [
+              PageTransitionSwitcher(
+                duration: const Duration(milliseconds: 400),
+                transitionBuilder: (child, animation, secondaryAnimation) {
+                  return FadeThroughTransition(
+                    animation: animation,
+                    secondaryAnimation: secondaryAnimation,
+                    child: child,
+                  );
+                },
+                child: _pages[_currentIndex.value],
+              ),
+              _buildFloatingMenu(),
+            ],
+          ),
+        ),
+        bottomNavigationBar: MediaQuery.of(context).size.width <= 600
+            ? Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, -5))
+                    ],
+                  ),
+                  child: BottomNavigationBar(
+                    currentIndex: _currentIndex.value,
+                    onTap: (index) => _currentIndex.value = index,
+                    backgroundColor: AppColors.secondaryNavy,
+                    selectedItemColor: AppColors.accentTeal,
+                    unselectedItemColor: Colors.white54,
+                    type: BottomNavigationBarType.fixed,
+                    items: _destinations.map((d) => BottomNavigationBarItem(
+                      icon: d.iconWidget ?? Icon(d.icon),
+                      activeIcon: d.selectedIconWidget ?? Icon(d.selectedIcon),
+                      label: d.label,
+                    )).toList(),
+                  ),
+                )
+            : null,
+      );
+    });
   }
 
   Widget _buildFloatingMenu() {
@@ -180,24 +237,33 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
     final isTeacher = authController.userData['role'] == 'teacher';
 
     return Positioned(
-      bottom: 90.h,
+      bottom: MediaQuery.of(context).size.width <= 600 ? 20.h : 90.h,
       right: 20.w,
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (_isMenuOpen) ...[
             if (isTeacher)
               _buildMenuItem(PhosphorIcons.chalkboardTeacher(), "لوحة المعلم", () {
-                _toggleMenu();
                 Get.toNamed('/teacher-dashboard');
               }),
             if (isTeacher) SizedBox(height: 12.h),
-            _buildMenuItem(PhosphorIcons.chatTeardropDots(), "الدعم الفني", () {
-              _toggleMenu();
+            _buildMenuItem(PhosphorIcons.chatTeardropDots(), "المساعد الذكي", () {
               Get.toNamed('/ai-chat');
             }),
             SizedBox(height: 12.h),
-            _buildMenuItem(PhosphorIcons.shareNetwork(), "مشاركة", () {}),
+            _buildMenuItem(PhosphorIcons.sparkle(), "توليد كويز (AI)", () {
+              Get.toNamed('/ai-chat', arguments: {'action': 'quiz'});
+            }),
+            SizedBox(height: 12.h),
+            _buildMenuItem(PhosphorIcons.translate(), "مترجم الدروس", () {
+              Get.toNamed('/ai-chat', arguments: {'action': 'translate'});
+            }),
+            SizedBox(height: 12.h),
+            _buildMenuItem(PhosphorIcons.exam(), "امتحان تجريبي", () {
+              Get.toNamed('/ai-chat', arguments: {'action': 'exam'});
+            }),
             SizedBox(height: 12.h),
           ],
           FloatingActionButton(
@@ -223,6 +289,7 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
       },
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
@@ -239,7 +306,7 @@ class _MainWrapperState extends State<MainWrapper> with SingleTickerProviderStat
             child: Icon(icon, color: Colors.white, size: 20),
           ),
         ],
-      ).animate().fadeIn().slideX(begin: 0.2),
+      ).animate().fadeIn().slideY(begin: 0.2),
     );
   }
 }

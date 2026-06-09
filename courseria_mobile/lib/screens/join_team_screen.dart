@@ -4,15 +4,38 @@ import 'package:get/get.dart';
 import '../core/constants/constants.dart';
 import '../controllers/auth_controller.dart';
 
-class JoinTeamScreen extends StatelessWidget {
-  JoinTeamScreen({super.key});
+class JoinTeamScreen extends StatefulWidget {
+  const JoinTeamScreen({super.key});
 
+  @override
+  State<JoinTeamScreen> createState() => _JoinTeamScreenState();
+}
+
+class _JoinTeamScreenState extends State<JoinTeamScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _specController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _bioController = TextEditingController();
+  late TextEditingController _nameController;
+  late TextEditingController _specController;
+  late TextEditingController _cityController;
+  late TextEditingController _bioController;
   final _authController = Get.find<AuthController>();
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _specController = TextEditingController();
+    _cityController = TextEditingController();
+    _bioController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _specController.dispose();
+    _cityController.dispose();
+    _bioController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

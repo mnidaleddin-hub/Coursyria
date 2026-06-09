@@ -56,6 +56,56 @@ class QuizResultScreen extends StatelessWidget {
             
             SizedBox(height: 40.h),
             
+            // Retake Quiz Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  final quiz = quizController.quizzes.firstWhereOrNull((q) => q.id == result.quizId);
+                  if (quiz != null) {
+                    Get.back();
+                    Get.toNamed('/quiz', arguments: {'quiz': quiz});
+                  } else if (result.quizId.startsWith('ai_temp_')) {
+                    Get.back();
+                    Get.snackbar("اختبار ذكي", "يرجى توليد اختبار ذكي جديد من شاشة الدرس.", backgroundColor: Colors.amber);
+                  }
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text("إعادة محاولة الاختبار"),
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  side: BorderSide(color: context.theme.primaryColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+
+            // Retake Quiz Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  final quiz = quizController.quizzes.firstWhereOrNull((q) => q.id == result.quizId);
+                  if (quiz != null) {
+                    Get.back();
+                    Get.toNamed('/quiz', arguments: {'quiz': quiz});
+                  } else if (result.quizId.startsWith('ai_temp_')) {
+                    Get.back();
+                    Get.snackbar("اختبار ذكي", "يرجى توليد اختبار ذكي جديد من شاشة الدرس.", backgroundColor: Colors.amber);
+                  }
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text("إعادة محاولة الاختبار"),
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  side: BorderSide(color: context.theme.primaryColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+
             // Actions
             SizedBox(
               width: double.infinity,
@@ -69,6 +119,22 @@ class QuizResultScreen extends StatelessWidget {
                 child: const Text("العودة للكورس"),
               ),
             ),
+            SizedBox(height: 20.h),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  // Navigate to review or scroll to it
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                  side: BorderSide(color: context.theme.primaryColor),
+                ),
+                child: const Text("مراجعة الإجابات التفصيلية"),
+              ),
+            ),
+            SizedBox(height: 100.h),
           ],
         ),
       ),

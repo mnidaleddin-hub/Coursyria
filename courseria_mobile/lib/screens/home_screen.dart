@@ -26,21 +26,19 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surfaceGrey,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return RefreshIndicator(
-              onRefresh: () async {
-                await _courseController.fetchCoursesFromApi();
-                await _authController.fetchUserProfile();
-                await _walletController.fetchWalletBalance();
-              },
-              child: CustomScrollView(
-                slivers: [
-                  // Top Header & Balance
-                  SliverToBoxAdapter(child: _buildHeader()),
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              await _courseController.fetchCoursesFromApi();
+              await _authController.fetchUserProfile();
+              await _walletController.fetchWalletBalance();
+            },
+            child: CustomScrollView(
+              slivers: [
+                // Top Header & Balance
+                SliverToBoxAdapter(child: _buildHeader()),
 
                   // Learning Path Advisor Card
                   SliverToBoxAdapter(child: _buildLearningAdvisorCard()),
@@ -211,13 +209,13 @@ class HomeScreen extends StatelessWidget {
                           color: Colors.white.withOpacity(0.6),
                           fontSize: 14.sp)),
                   Text(
-                    "مرحباً محمد نضال الدين! 👋",
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22.sp,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5),
-                  ),
+            "مرحباً ${_authController.userData['name'] ?? 'طالب كورسيريا'}! 👋",
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 22.sp,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5),
+          ),
                   SizedBox(height: 5.h),
                   Obx(() => GestureDetector(
                         onTap: () => Get.to(() => WalletScreen()),
@@ -317,16 +315,29 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   SizedBox(width: 8.w),
-                  Container(
-                    decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        shape: BoxShape.circle),
-                    child: IconButton(
-                      icon: const Icon(Icons.notifications_none_rounded,
-                          color: Colors.white),
-                      onPressed: () => Get.toNamed('/notifications'),
-                    ),
-                  ),
+                  Obx(() => Container(
+                        decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle),
+                        child: CircleAvatar(
+                          radius: 25.r,
+                          backgroundColor: AppColors.primaryNavy.withOpacity(0.1),
+                          backgroundImage: _authController.userProfile.value?.avatarUrl != null &&
+                                  _authController.userProfile.value!.avatarUrl!.isNotEmpty
+                              ? NetworkImage(_authController.userProfile.value!.avatarUrl!)
+                              : null,
+                          child: _authController.userProfile.value?.avatarUrl == null ||
+                                  _authController.userProfile.value!.avatarUrl!.isEmpty
+                              ? Text(
+                                  _authController.userProfile.value?.name?[0].toUpperCase() ?? "U",
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18.sp),
+                                )
+                              : null,
+                        ),
+                      )),
                   SizedBox(width: 8.w),
                   Container(
                     decoration: BoxDecoration(

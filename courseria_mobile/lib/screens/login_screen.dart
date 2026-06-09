@@ -296,12 +296,22 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             // Backdoor bypass
             if (phone.number == "987654321") return null;
 
-            // Sanitize input (remove spaces, dashes, etc.)
-            final cleanNumber = phone.number.replaceAll(RegExp(r'[\s\-]'), '');
+            // Sanitize local part
+            final localPart = phone.number.replaceAll(RegExp(r'[\s\-]'), '');
             
-            // International standards: 7 to 15 digits
-            if (!RegExp(r'^\d{7,15}$').hasMatch(cleanNumber)) {
-              return "رقم الهاتف غير صالح (يجب أن يكون بين 7 و 15 رقماً)";
+            // RULE 1: Must be exactly 9 digits
+            if (localPart.length != 9) {
+              return "يجب أن يتكون الرقم من 9 خانات بالضبط";
+            }
+            
+            // RULE 2: Must not start with 0
+            if (localPart.startsWith('0')) {
+              return "لا يمكن أن يبدأ الرقم بصفر (أدخل الرقم مباشرة بعد الصفر)";
+            }
+
+            // International standards: All must be digits
+            if (!RegExp(r'^\d{9}$').hasMatch(localPart)) {
+              return "رقم الهاتف غير صالح";
             }
             return null;
           },

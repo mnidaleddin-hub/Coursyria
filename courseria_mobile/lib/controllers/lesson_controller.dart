@@ -251,6 +251,9 @@ class LessonController extends GetxController {
       fetchLessonNotes(lessonId);
       Get.snackbar("تم الحفظ", "تم إضافة ملاحظتك الذكية بنجاح", 
           backgroundColor: AppColors.accentTeal, colorText: Colors.white);
+      
+      // Bonus XP for taking notes
+      Get.find<GamificationController>().addXP(10);
     } catch (e) {
       _logger.e("Error adding note: $e");
       Get.snackbar("خطأ", "فشل في حفظ الملاحظة. تأكد من وجود جدول lesson_notes");
@@ -406,9 +409,9 @@ class LessonController extends GetxController {
       Get.snackbar("رائع!", "تم إكمال الدرس بنجاح ✅", 
           backgroundColor: AppColors.accentTeal, colorText: Colors.white);
 
-      // Phase 2: Add Points
-      final authController = Get.find<AuthController>();
-      await authController.addPoints(50); // 50 points per lesson
+      // Phase 2: Add Points & XP
+      final gamificationController = Get.find<GamificationController>();
+      await gamificationController.addXP(100); // 100 XP per lesson
 
       // 2. Fetch parent phone if available
       final userData = await _supabase.from('user_profiles').select('full_name, parent_phone').eq('id', user.id).single();

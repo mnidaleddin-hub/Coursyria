@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -7,6 +8,8 @@ import '../models/group_model.dart';
 import '../models/group_member_model.dart';
 import '../models/group_post_model.dart';
 import 'auth_controller.dart';
+
+import '../models/chat_message_model.dart';
 
 class GroupController extends GetxController {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -23,6 +26,12 @@ class GroupController extends GetxController {
   var groupPosts = <GroupPost>[].obs;
   var isLoadingGroupPosts = false.obs;
 
+  var chatMessages = <ChatMessage>[].obs;
+  var typingUsers = <String>[].obs;
+  var onlineMembers = <String>[].obs;
+  var messageQueue = <ChatMessage>[].obs;
+  var pinnedMessages = <ChatMessage>[].obs;
+
   @override
   void onInit() {
     super.onInit();
@@ -30,7 +39,6 @@ class GroupController extends GetxController {
     fetchPublicGroups();
   }
 
-  /// Fetches groups that the current user is a member of.
   Future<void> fetchMyGroups() async {
     isLoadingGroups.value = true;
     try {
@@ -42,19 +50,56 @@ class GroupController extends GetxController {
 
       final List<dynamic> response = await _supabase
           .from('group_members')
-          .select('groups(*)') 
+          .select('groups(*, group_members!left(user_id, role))') 
           .eq('user_id', userId);
 
-      myGroups.assignAll(response.map((e) => Group.fromJson(e['groups'])).toList());
+      final fetchedGroups = response.map((e) {
+        final json = e['groups'];
+        final List<dynamic>? membersData = json['group_members'];
+        final String? myRole = membersData != null && membersData.isNotEmpty 
+            ? (membersData.firstWhereOrNull((member) => member['user_id'] == userId)?['role'] as String?)
+            : null;
+        return Group.fromJson(json).copyWith(isMember: true, myRole: myRole);
+      }).toList();
+
+      myGroups.assignAll(fetchedGroups);
+      _saveMyGroupsToCache(fetchedGroups);
     } catch (e) {
       Get.snackbar("خطأ", "فشل جلب مجموعاتي: $e",
           backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
-      print("Error fetching my groups: $e");
     } finally {
       isLoadingGroups.value = false;
     }
   }
 
+  void _saveMyGroupsToCache(List<Group> groups) {
+    GetStorage().write('cached_my_groups', groups.map((e) => e.toJson()).toList());
+  }
+
+  void _loadMyGroupsFromCache() {
+    final cachedData = GetStorage().read('cached_my_groups');
+    if (cachedData != null) {
+      myGroups.assignAll((cachedData as List).map((e) => Group.fromJson(e)).toList());
+    }
+  }
+
+  Future<void> togglePinPost(String postId, bool isPinned) async {
+    try {
+      await _supabase.from('group_posts').update({'is_pinned': !isPinned}).eq('id', postId);
+      fetchGroupPosts(currentGroup.value?.id ?? "");
+    } catch (e) {
+      print("Error toggling pin: $e");
+    }
+  }
+
+  Future<void> toggleSolved(String postId, bool isSolved) async {
+    try {
+      await _supabase.from('group_posts').update({'is_solved': !isSolved}).eq('id', postId);
+      fetchGroupPosts(currentGroup.value?.id ?? "");
+    } catch (e) {
+      print("Error toggling solved: $e");
+    }
+  }
   /// Fetches all public groups.
   Future<void> fetchPublicGroups() async {
     isLoadingGroups.value = true;
@@ -80,23 +125,43 @@ class GroupController extends GetxController {
     }
   }
 
-  /// Fetches details for a specific group.
   Future<void> fetchGroupDetails(String groupId) async {
+    isLoadingGroups.value = true;
     try {
-      final userId = _supabase.auth.currentUser?.id;
       final response = await _supabase
           .from('groups')
           .select('*, group_members!left(user_id, role)')
           .eq('id', groupId)
           .single();
-
+      
+      final userId = _supabase.auth.currentUser?.id;
       final List<dynamic>? membersData = response['group_members'];
-      final bool isMember = membersData != null && membersData.any((member) => member['user_id'] == userId);
-      final String? myRole = isMember ? (membersData!.firstWhere((member) => member['user_id'] == userId)['role'] as String?) : null;
+      final String? myRole = membersData != null && userId != null
+          ? (membersData.firstWhereOrNull((member) => member['user_id'] == userId)?['role'] as String?)
+          : null;
 
-      currentGroup.value = Group.fromJson(response).copyWith(isMember: isMember, myRole: myRole);
+      currentGroup.value = Group.fromJson(response).copyWith(
+        isMember: myRole != null,
+        myRole: myRole,
+      );
+
+      // Also fetch related data for the group
+      await Future.wait([
+        fetchGroupMembers(groupId),
+        fetchGroupPosts(groupId),
+      ]);
+
+      // Only listen to messages and sync if the user is a member
+      if (myRole != null) {
+        _listenToMessages(groupId);
+        syncOfflineMessages();
+      }
     } catch (e) {
+      Get.snackbar("خطأ", "فشل جلب تفاصيل المجموعة: $e",
+          backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
       print("Error fetching group details: $e");
+    } finally {
+      isLoadingGroups.value = false;
     }
   }
 
@@ -248,34 +313,60 @@ class GroupController extends GetxController {
     }
   }
 
-  /// Fetches posts for a specific group.
   Future<void> fetchGroupPosts(String groupId) async {
-    isLoadingGroupPosts.value = true;
+    _loadPostsFromCache(groupId);
+    if (groupPosts.isEmpty) {
+      isLoadingGroupPosts.value = true;
+    }
     try {
       final userId = _supabase.auth.currentUser?.id;
 
       final List<dynamic> response = await _supabase
           .from('group_posts')
-          .select('*, profiles:user_id(full_name, avatar_url), likes!left(user_id)')
+          .select('*, profiles:user_id(full_name, avatar_url, role), likes!left(user_id)')
           .eq('group_id', groupId)
+          .order('is_pinned', ascending: false)
           .order('created_at', ascending: false);
 
-      groupPosts.assignAll(response.map((json) {
+      final List<GroupPost> fetchedPosts = response.map((json) {
         final List<dynamic>? likesData = json['likes'];
-        final bool isLiked = likesData != null && likesData.any((like) => like['user_id'] == userId);
+        final bool isLiked = userId != null && 
+            likesData != null && 
+            likesData.any((like) => like['user_id'] == userId);
         return GroupPost.fromJson(json).copyWith(isLiked: isLiked);
-      }).toList());
+      }).toList();
+
+      groupPosts.assignAll(fetchedPosts);
+      _savePostsToCache(groupId, fetchedPosts);
     } catch (e) {
       Get.snackbar("خطأ", "فشل جلب منشورات المجموعة: $e",
           backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
-      print("Error fetching group posts: $e");
     } finally {
       isLoadingGroupPosts.value = false;
     }
   }
 
-  /// Creates a new post within a group, optionally with an image.
-  Future<void> createGroupPost(String groupId, String content, {File? image}) async {
+  void _loadPostsFromCache(String groupId) {
+    final cachedData = GetStorage().read('cached_group_posts_$groupId');
+    if (cachedData != null) {
+      groupPosts.assignAll((cachedData as List).map((e) => GroupPost.fromJson(e)).toList());
+    }
+  }
+
+  void _savePostsToCache(String groupId, List<GroupPost> posts) {
+    GetStorage().write('cached_group_posts_$groupId', posts.map((e) => e.toJson()).toList());
+  }
+
+  Future<void> createGroupPost(String groupId, String content, {File? image, bool isAnonymous = false}) async {
+    // Profanity Filter (Reuse from community)
+    final profanityList = ['badword1', 'badword2']; 
+    for (var word in profanityList) {
+      if (content.contains(word)) {
+        Get.snackbar("تنبيه", "محتوى غير لائق.");
+        return;
+      }
+    }
+
     isLoadingGroupPosts.value = true;
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -300,22 +391,13 @@ class GroupController extends GetxController {
         'user_id': userId,
         'content': content,
         'image_url': imageUrl,
-        'likes_count': 0,
-        'comments_count': 0,
-        'is_pinned': false,
+        'is_anonymous': isAnonymous,
       });
 
-      // We might need an RPC for this if we want to keep it consistent
-      // For now, let's assume it's handled or we can add it later if needed.
-      // await _supabase.rpc('increment_group_post_count', params: {'group_id': groupId});
-
-      Get.snackbar("نجاح", "تم نشر منشور المجموعة بنجاح.",
-          backgroundColor: Get.theme.colorScheme.secondary, colorText: Get.theme.colorScheme.onSecondary);
       fetchGroupPosts(groupId);
     } catch (e) {
       Get.snackbar("خطأ", "فشل نشر منشور المجموعة: $e",
           backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
-      print("Error creating group post: $e");
     } finally {
       isLoadingGroupPosts.value = false;
     }
@@ -367,24 +449,243 @@ class GroupController extends GetxController {
     }
   }
 
-  /// Toggles the pinned status of a group post.
-  Future<void> togglePinPost(String postId, bool isPinned) async {
+  void _listenToMessages(String groupId) {
+    _loadChatFromCache(groupId);
+    
+    // Real-time messages
+    _supabase
+        .from('chat_messages')
+        .stream(primaryKey: ['id'])
+        .eq('group_id', groupId)
+        .order('created_at', ascending: true)
+        .listen((data) {
+      final messages = data.map((e) => ChatMessage.fromJson(e)).toList();
+      chatMessages.assignAll(messages);
+      _saveChatToCache(groupId, messages);
+      _markMessagesAsRead(groupId);
+    });
+
+    // Presence & Typing (using Supabase Realtime Channels)
+    final channel = _supabase.channel('group_$groupId');
+    
+    channel.onPresenceSync((payload) {
+      final presenceState = channel.presenceState();
+      onlineMembers.assignAll(presenceState.keys);
+    }).onPresenceJoin((payload) {
+      // Handle join
+    }).onPresenceLeave((payload) {
+      // Handle leave
+    }).onBroadcast(event: 'typing', callback: (payload) {
+      final String userId = payload['user_id'];
+      final bool typing = payload['is_typing'];
+      if (typing) {
+        if (!typingUsers.contains(userId)) typingUsers.add(userId);
+      } else {
+        typingUsers.remove(userId);
+      }
+    }).subscribe((status, error) {
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        channel.track({'user_id': _supabase.auth.currentUser?.id});
+      }
+    });
+  }
+
+  void setTyping(String groupId, bool isTyping) {
+    _supabase.channel('group_$groupId').sendBroadcast(
+      event: 'typing',
+      payload: {'user_id': _supabase.auth.currentUser?.id, 'is_typing': isTyping},
+    );
+  }
+
+  Future<void> _markMessagesAsRead(String groupId) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
     try {
       await _supabase
-          .from('group_posts')
-          .update({'is_pinned': !isPinned})
-          .eq('id', postId);
-
-      final index = groupPosts.indexWhere((post) => post.id == postId);
-      if (index != -1) {
-        groupPosts[index] = groupPosts[index].copyWith(isPinned: !isPinned);
-      }
-      
-      Get.snackbar("نجاح", isPinned ? "تم إلغاء تثبيت المنشور." : "تم تثبيت المنشور بنجاح.",
-          backgroundColor: Get.theme.colorScheme.secondary, colorText: Get.theme.colorScheme.onSecondary);
+          .from('chat_messages')
+          .update({'status': 'read'})
+          .eq('group_id', groupId)
+          .neq('user_id', userId)
+          .eq('status', 'sent');
     } catch (e) {
-      Get.snackbar("خطأ", "فشل تغيير حالة تثبيت المنشور: $e",
-          backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
+      print("Error marking messages as read: $e");
+    }
+  }
+
+  Future<void> sendMessage(String groupId, String content, {String? replyToId, File? image, File? audio, File? file}) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    String? imageUrl;
+    String? audioUrl;
+    String? fileUrl;
+    String? fileName;
+
+    // Upload files if any
+    try {
+      if (image != null) {
+        final name = "${_uuid.v4()}.jpg";
+        await _supabase.storage.from('chat_media').upload("images/$name", image);
+        imageUrl = _supabase.storage.from('chat_media').getPublicUrl("images/$name");
+      }
+      if (audio != null) {
+        final name = "${_uuid.v4()}.mp3";
+        await _supabase.storage.from('chat_media').upload("audio/$name", audio);
+        audioUrl = _supabase.storage.from('chat_media').getPublicUrl("audio/$name");
+      }
+      if (file != null) {
+        fileName = file.path.split('/').last;
+        final name = "${_uuid.v4()}_$fileName";
+        await _supabase.storage.from('chat_media').upload("files/$name", file);
+        fileUrl = _supabase.storage.from('chat_media').getPublicUrl("files/$name");
+      }
+    } catch (e) {
+      Get.snackbar("خطأ في الرفع", "فشل رفع الوسائط: $e");
+    }
+
+    final message = ChatMessage(
+      id: _uuid.v4(),
+      groupId: groupId,
+      userId: userId,
+      content: content,
+      replyToId: replyToId,
+      imageUrl: imageUrl,
+      audioUrl: audioUrl,
+      fileUrl: fileUrl,
+      fileName: fileName,
+      status: 'pending',
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      await _supabase.from('chat_messages').insert(message.toJson());
+    } catch (e) {
+      messageQueue.add(message);
+      _saveOfflineMessages();
+      Get.snackbar("وضع الأوفلاين", "سيتم إرسال الرسالة عند عودة الاتصال.");
+    }
+  }
+
+  void _saveChatToCache(String groupId, List<ChatMessage> messages) {
+    // Keep only last 100 messages for cache efficiency (Feature 111)
+    final toCache = messages.length > 100 ? messages.sublist(messages.length - 100) : messages;
+    GetStorage().write('cached_chat_$groupId', toCache.map((e) => e.toJson()).toList());
+  }
+
+  void _loadChatFromCache(String groupId) {
+    final cached = GetStorage().read('cached_chat_$groupId');
+    if (cached != null) {
+      chatMessages.assignAll((cached as List).map((e) => ChatMessage.fromJson(e)).toList());
+    }
+  }
+
+  void _saveOfflineMessages() {
+    GetStorage().write('offline_messages', messageQueue.map((e) => e.toJson()).toList());
+  }
+
+  Future<void> syncOfflineMessages() async {
+    final cached = GetStorage().read('offline_messages');
+    if (cached != null) {
+      messageQueue.assignAll((cached as List).map((e) => ChatMessage.fromJson(e)).toList());
+    }
+
+    if (messageQueue.isEmpty) return;
+    
+    final List<ChatMessage> toSync = List.from(messageQueue);
+    messageQueue.clear();
+    _saveOfflineMessages();
+
+    for (var msg in toSync) {
+      try {
+        await _supabase.from('chat_messages').insert(msg.toJson());
+      } catch (e) {
+        messageQueue.add(msg);
+        _saveOfflineMessages();
+      }
+    }
+  }
+
+  Future<void> deleteGroupMessage(String messageId) async {
+    if (!_authController.isTeacher) return;
+    try {
+      await _supabase.from('chat_messages').delete().eq('id', messageId);
+    } catch (e) {
+      print("Error deleting message: $e");
+    }
+  }
+
+  Future<void> toggleMuteRoom(String groupId, bool isMuted) async {
+    try {
+      await _supabase.from('groups').update({'is_muted': !isMuted}).eq('id', groupId);
+      fetchGroupDetails(groupId);
+    } catch (e) {
+      print("Error muting room: $e");
+    }
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    final myRole = currentGroup.value?.myRole;
+    if (myRole != 'owner' && myRole != 'teacher') {
+      Get.snackbar("تنبيه", "ليس لديك صلاحية حذف الرسائل.");
+      return;
+    }
+
+    try {
+      await _supabase.from('chat_messages').delete().eq('id', messageId);
+    } catch (e) {
+      print("Error deleting message: $e");
+    }
+  }
+
+  Future<void> kickMember(String groupId, String userId) async {
+    if (currentGroup.value?.myRole != 'owner') return;
+
+    try {
+      await _supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', userId);
+      fetchGroupMembers(groupId);
+    } catch (e) {
+      print("Error kicking member: $e");
+    }
+  }
+
+  Future<void> toggleRoomLock(String groupId, bool isLocked) async {
+    if (currentGroup.value?.myRole != 'owner') return;
+
+    try {
+      await _supabase.from('groups').update({'is_locked': !isLocked}).eq('id', groupId);
+      fetchGroupDetails(groupId);
+    } catch (e) {
+      print("Error toggling room lock: $e");
+    }
+  }
+
+  Future<void> addMessageReaction(String messageId, String reaction) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      await _supabase.from('chat_message_reactions').upsert({
+        'user_id': userId,
+        'message_id': messageId,
+        'reaction': reaction,
+      }, onConflict: 'user_id,message_id');
+    } catch (e) {
+      print("Error adding message reaction: $e");
+    }
+  }
+
+  Future<void> reportGroupContent(String type, String id, String reason) async {
+    try {
+      await _supabase.from('reports').insert({
+        'user_id': _supabase.auth.currentUser?.id,
+        'content_type': 'group_$type',
+        'content_id': id,
+        'reason': reason,
+      });
+      Get.snackbar("شكراً لك", "تم إرسال البلاغ.");
+    } catch (e) {
+      print("Error reporting group content: $e");
     }
   }
 }

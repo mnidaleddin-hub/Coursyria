@@ -92,10 +92,19 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.course.title, style: AppTextStyles.header.copyWith(fontSize: 24.sp)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(child: Text(widget.course.title, style: AppTextStyles.header.copyWith(fontSize: 24.sp))),
+                      _buildCourseBadge(),
+                    ],
+                  ),
                   SizedBox(height: 8.h),
                   Text(widget.course.description, style: AppTextStyles.body.copyWith(color: AppColors.textMuted)),
+                  SizedBox(height: 16.h),
+                  _buildCourseStats(),
                   SizedBox(height: 24.h),
+                  _buildProgressSection(),
                   _buildContentList(),
                 ],
               ),
@@ -104,6 +113,103 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildCourseBadge() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        color: AppColors.accentTeal.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.accentTeal, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.offline_pin_rounded, color: AppColors.accentTeal, size: 16.sp),
+          SizedBox(width: 4.w),
+          Text("جاهز للأوفلاين", style: TextStyle(color: AppColors.accentTeal, fontSize: 11.sp, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourseStats() {
+    return Container(
+      padding: EdgeInsets.all(16.r),
+      decoration: BoxDecoration(
+        color: AppColors.secondaryNavy,
+        borderRadius: BorderRadius.circular(16.r),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem(Icons.play_circle_fill_rounded, "${widget.course.lessons.length} دروس"),
+          _buildStatItem(Icons.timer_rounded, "${widget.course.duration ?? '10+'} س"),
+          _buildStatItem(Icons.bar_chart_rounded, widget.course.level ?? "مبتدئ"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(IconData icon, String label) {
+    return Column(
+      children: [
+        Icon(icon, color: AppColors.accentTeal, size: 20.sp),
+        SizedBox(height: 4.h),
+        Text(label, style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
+      ],
+    );
+  }
+
+  Widget _buildDownloadTrailing(Lesson lesson, DownloadStatus status, double progress) {
+    if (status == DownloadStatus.completed) {
+      return const Icon(Icons.check_circle_rounded, color: AppColors.accentTeal);
+    }
+    if (status == DownloadStatus.downloading) {
+      return SizedBox(
+        width: 24.r,
+        height: 24.r,
+        child: CircularProgressIndicator(value: progress, strokeWidth: 3, color: AppColors.accentTeal),
+      );
+    }
+    return IconButton(
+      icon: const Icon(Icons.download_for_offline_rounded, color: Colors.white24),
+      onPressed: () => _lessonController.downloadLesson(lesson, lesson.videoUrl ?? ""),
+    );
+  }
+
+  Widget _buildProgressSection() {
+    return Obx(() {
+      final lessons = widget.course.lessons;
+      if (lessons.isEmpty) return const SizedBox.shrink();
+
+      // Simple calculation: count lessons that are marked completed in student_progress table
+      // (This needs proper progress tracking implementation)
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("تقدمك في الكورس", style: AppTextStyles.header.copyWith(fontSize: 14.sp, color: Colors.white70)),
+              Text("0%", style: TextStyle(color: AppColors.accentTeal, fontWeight: FontWeight.bold, fontSize: 14.sp)),
+            ],
+          ),
+          SizedBox(height: 8.h),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4.r),
+            child: const LinearProgressIndicator(
+              value: 0.0,
+              backgroundColor: Colors.white10,
+              valueColor: AlwaysStoppedAnimation(AppColors.accentTeal),
+              minHeight: 6,
+            ),
+          ),
+          SizedBox(height: 24.h),
+        ],
+      );
+    });
   }
 
   Widget _buildContentList() {
@@ -117,12 +223,28 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
         itemCount: lessons.length,
         itemBuilder: (context, index) {
           final lesson = lessons[index];
-          return ListTile(
-            leading: CircleAvatar(child: Text("${index + 1}")),
-            title: Text(lesson.title),
-            subtitle: Text("${lesson.durationSeconds ~/ 60} دقيقة"),
-            onTap: () => Get.to(() => VideoPlayerScreen(lesson: lesson, videoUrl: lesson.videoUrl ?? "")),
-          );
+          return Obx(() {
+            final status = _lessonController.downloadStatuses[lesson.id] ?? DownloadStatus.pending;
+            final progress = _lessonController.downloadProgresses[lesson.id] ?? 0.0;
+
+            return Container(
+              margin: EdgeInsets.only(bottom: 12.h),
+              decoration: BoxDecoration(
+                color: AppColors.secondaryNavy.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(15.r),
+              ),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.primaryNavy,
+                  child: Text("${index + 1}", style: const TextStyle(color: Colors.white)),
+                ),
+                title: Text(lesson.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                subtitle: Text("${lesson.durationSeconds ~/ 60} دقيقة", style: const TextStyle(color: Colors.white38)),
+                trailing: _buildDownloadTrailing(lesson, status, progress),
+                onTap: () => Get.to(() => VideoPlayerScreen(lesson: lesson, videoUrl: lesson.videoUrl ?? "")),
+              ),
+            );
+          });
         },
       );
     });

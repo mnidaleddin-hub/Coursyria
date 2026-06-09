@@ -41,51 +41,48 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.darkBg,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => controller.fetchDashboardData(),
-          color: AppColors.accentTeal,
-          backgroundColor: AppColors.secondaryNavy,
-          child: Obx(() => Skeletonizer(
-            enabled: controller.isLoading.value,
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                // 1. Header Section
-                SliverToBoxAdapter(child: _buildHeader(controller)),
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: () => controller.fetchDashboardData(),
+        color: AppColors.accentTeal,
+        backgroundColor: AppColors.secondaryNavy,
+        child: Obx(() => Skeletonizer(
+          enabled: controller.isLoading.value,
+          child: CustomScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // 1. Header Section
+              SliverToBoxAdapter(child: _buildHeader(controller)),
 
-                // 2. Global Search Bar
-                SliverToBoxAdapter(child: _buildSearchBar()),
+              // 2. Global Search Bar
+              SliverToBoxAdapter(child: _buildSearchBar()),
 
-                // 3. Animated Stats Grid
-                SliverToBoxAdapter(child: _buildQuickStats(controller)),
+              // 3. Animated Stats Grid
+              SliverToBoxAdapter(child: _buildQuickStats(controller)),
 
-                // 4. Weekly Report Card
-                SliverToBoxAdapter(child: _buildWeeklyReport(controller)),
+              // 4. Weekly Report Card
+              SliverToBoxAdapter(child: _buildWeeklyReport(controller)),
 
-                // AI Performance Insights & Prediction
-                SliverToBoxAdapter(child: _buildAIInsights(controller)),
+              // AI Performance Insights & Prediction
+              SliverToBoxAdapter(child: _buildAIInsights(controller)),
 
-                // 5. Horizontal Learning Path
-                SliverToBoxAdapter(child: _buildContinueLearning(controller)),
+              // 5. Horizontal Learning Path
+              SliverToBoxAdapter(child: _buildContinueLearning(controller)),
 
-                // 6. AI Powered Recommendations (GridView)
-                SliverToBoxAdapter(child: _buildRecommendations(controller)),
+              // 6. AI Powered Recommendations (GridView)
+              SliverToBoxAdapter(child: _buildRecommendations(controller)),
 
-                // 7. Weekly Challenges (Horizontal)
-                SliverToBoxAdapter(child: _buildWeeklyChallenges(controller)),
+              // 7. Weekly Challenges (Horizontal)
+              SliverToBoxAdapter(child: _buildWeeklyChallenges(controller)),
 
-                // 8. Recent Achievements (Horizontal)
-                SliverToBoxAdapter(child: _buildRecentAchievements(controller)),
+              // 8. Recent Achievements (Horizontal)
+              SliverToBoxAdapter(child: _buildRecentAchievements(controller)),
 
-                SliverToBoxAdapter(child: SizedBox(height: 100.h)),
-              ],
-            ),
-          )),
-        ),
+              SliverToBoxAdapter(child: SizedBox(height: 100.h)),
+            ],
+          ),
+        )),
       ),
     );
   }
@@ -171,17 +168,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       child: Stack(
         alignment: Alignment.topRight,
         children: [
-          Container(
-            padding: EdgeInsets.all(3.r),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.accentTeal, width: 2),
-            ),
-            child: CircleAvatar(
-              radius: 26.r,
-              backgroundColor: AppColors.secondaryNavy.withOpacity(0.5),
-              child: Icon(PhosphorIcons.user(), color: Colors.white),
-            ),
+          CircleAvatar(
+            radius: 30.r,
+            backgroundColor: Colors.white.withOpacity(0.1),
+            backgroundImage: authController.userData['avatar_url'] != null && authController.userData['avatar_url'].toString().isNotEmpty
+                ? NetworkImage(authController.userData['avatar_url'])
+                : null,
+            child: authController.userData['avatar_url'] == null || authController.userData['avatar_url'].toString().isEmpty
+                ? Text(
+                    authController.userData['name']?[0]?.toUpperCase() ?? "U",
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20.sp),
+                  )
+                : null,
           ),
           Obx(() => controller.studyStreak.value > 0 
             ? Container(

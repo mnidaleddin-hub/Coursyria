@@ -183,16 +183,11 @@ class OfflineVideoManager {
   }
 
   Future<double> getUsedStorageMB() async {
-    final vault = await _getVaultPath();
-    final dir = Directory(vault);
-    int totalSize = 0;
-    if (await dir.exists()) {
-      await for (var file in dir.list(recursive: true)) {
-        if (file is File) {
-          totalSize += await file.length();
-        }
-      }
+    final Map<String, dynamic> downloads = getAllDownloads();
+    int totalBytes = 0;
+    for (var item in downloads.values) {
+      totalBytes += (item['size'] as int? ?? 0);
     }
-    return totalSize / (1024 * 1024);
+    return totalBytes / (1024 * 1024);
   }
 }

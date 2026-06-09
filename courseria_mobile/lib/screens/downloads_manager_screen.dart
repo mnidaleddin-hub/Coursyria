@@ -38,6 +38,30 @@ class _DownloadsManagerScreenState extends State<DownloadsManagerScreen> {
         backgroundColor: AppColors.accentTeal, colorText: Colors.white);
   }
 
+  Future<void> _deleteAllConfirm() async {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: AppColors.secondaryNavy,
+        title: const Text("حذف جميع التنزيلات؟", style: TextStyle(color: Colors.white)),
+        content: const Text("هل أنت متأكد من رغبتك في حذف كافة الفيديوهات المحملة لتوفير مساحة؟", style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text("إلغاء", style: TextStyle(color: Colors.white24))),
+          ElevatedButton(
+            onPressed: () async {
+              Get.back();
+              for (var key in _downloads.keys.toList()) {
+                await _offlineManager.deleteVideo(key);
+              }
+              _loadDownloads();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text("حذف الكل"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,6 +70,14 @@ class _DownloadsManagerScreenState extends State<DownloadsManagerScreen> {
         title: const Text("إدارة التنزيلات", style: TextStyle(color: Colors.white)),
         backgroundColor: AppColors.primaryNavy,
         elevation: 0,
+        actions: [
+          if (_downloads.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
+              onPressed: _deleteAllConfirm,
+              tooltip: "حذف الكل",
+            ),
+        ],
       ),
       body: _isLoading 
           ? const Center(child: CircularProgressIndicator(color: AppColors.accentTeal))

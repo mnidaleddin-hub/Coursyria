@@ -41,34 +41,56 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.primaryNavy,
-      appBar: AppBar(
-        title: Text("لوحة المتصدرين 🏆", style: TextStyle(color: Colors.white, fontSize: 18.sp)),
-        backgroundColor: AppColors.secondaryNavy,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: AppColors.primaryNavy,
+        appBar: AppBar(
+          title: Text("لوحة المتصدرين 🏆", style: TextStyle(color: Colors.white, fontSize: 18.sp)),
+          backgroundColor: AppColors.secondaryNavy,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+          bottom: const TabBar(
+            indicatorColor: AppColors.accentTeal,
+            tabs: [
+              Tab(text: "عالمي"),
+              Tab(text: "رياضيات"),
+              Tab(text: "فيزياء"),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildLeaderboardList('global'),
+            _buildLeaderboardList('math'),
+            _buildLeaderboardList('physics'),
+          ],
+        ),
       ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: AppColors.accentTeal))
-          : Column(
-              children: [
-                // 1. Top 3 Podium
-                if (_topStudents.length >= 3) _buildPodium(),
-                
-                // 2. The Rest List
-                Expanded(
-                  child: ListView.builder(
-                    padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-                    itemCount: _topStudents.length > 3 ? _topStudents.length - 3 : 0,
-                    itemBuilder: (context, index) {
-                      final student = _topStudents[index + 3];
-                      return _buildLeaderboardTile(index + 4, student);
-                    },
-                  ),
-                ),
-              ],
-            ),
+    );
+  }
+
+  Widget _buildLeaderboardList(String category) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.accentTeal));
+    }
+    return Column(
+      children: [
+        // 1. Top 3 Podium
+        if (_topStudents.length >= 3) _buildPodium(),
+
+        // 2. The Rest List
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+            itemCount: _topStudents.length > 3 ? _topStudents.length - 3 : 0,
+            itemBuilder: (context, index) {
+              final student = _topStudents[index + 3];
+              return _buildLeaderboardTile(index + 4, student);
+            },
+          ),
+        ),
+      ],
     );
   }
 

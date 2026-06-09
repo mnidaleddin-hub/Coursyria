@@ -469,13 +469,21 @@ class AuthController extends GetxController {
         if (!input.startsWith("@")) input = "@$input";
         phoneNumber.value = input;
       } else {
-        String code = countryCode.value;
-        if (!code.startsWith('+')) code = '+$code';
+        // Updated logic for country code + 9 digits (no +, no 00, no leading zero in local part)
+        String code = countryCode.value.replaceAll(RegExp(r'[+\s]'), '');
+        if (code.startsWith('00')) code = code.substring(2);
+        
         String rawPhone = phoneController.text.trim();
         rawPhone = rawPhone.replaceAll(RegExp(r'[\s\-]'), '');
-        if (rawPhone.startsWith('0')) rawPhone = rawPhone.substring(1);
+        
+        // Ensure no leading zero in the local part
+        if (rawPhone.startsWith('0')) {
+          rawPhone = rawPhone.substring(1);
+        }
+        
+        // Final concatenation: code + 9 digits
         input = "$code$rawPhone";
-        phoneNumber.value = input;
+        phoneNumber.value = "+$input"; // Store with + for consistency in UI/DB
       }
       if (input.isEmpty) throw "يرجى إدخال البيانات المطلوبة";
       

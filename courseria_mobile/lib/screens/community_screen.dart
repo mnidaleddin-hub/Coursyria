@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import '../core/constants/constants.dart';
 import '../controllers/community_controller.dart';
 import '../models/post_model.dart';
@@ -27,6 +28,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
   final TextEditingController _postContentController = TextEditingController();
   final TextEditingController _commentContentController = TextEditingController();
   final Rx<File?> _selectedPostImage = Rx<File?>(null);
+  final Rx<File?> _selectedPostAudio = Rx<File?>(null);
+  final Rx<File?> _selectedPostPdf = Rx<File?>(null);
+  final RxList<String> _selectedTags = <String>[].obs;
 
   @override
   void initState() {
@@ -39,51 +43,95 @@ class _CommunityScreenState extends State<CommunityScreen> {
     _postContentController.dispose();
     _commentContentController.dispose();
     _selectedPostImage.value = null; 
+    _selectedPostAudio.value = null;
+    _selectedPostPdf.value = null;
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text("مجتمع التعلم", style: AppTextStyles.header.copyWith(fontSize: 18.sp, color: Colors.white)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          _buildPostInput(),
-          Expanded(
-            child: Obx(() {
-              return Skeletonizer(
-                enabled: _communityController.isLoadingPosts.value,
-                child: _communityController.posts.isEmpty && !_communityController.isLoadingPosts.value
-                    ? Center(
-                        child: Text("لا توجد منشورات حالياً.",
-                            style: AppTextStyles.body.copyWith(color: AppColors.textMuted)),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _communityController.fetchPosts,
-                        color: context.theme.primaryColor,
-                        child: ListView.builder(
-                          padding: EdgeInsets.all(20.r),
-                          itemCount: _communityController.isLoadingPosts.value ? 2 : _communityController.posts.length,
-                          itemBuilder: (context, index) {
-                            if (_communityController.isLoadingPosts.value) {
-                              return _buildFakePostCard();
-                            }
-                            final post = _communityController.posts[index];
-                            return _buildPostCard(post);
-                          },
-                        ),
+    return Column(
+      children: [
+        _buildSearchAndSort(),
+        _buildPostInput(),
+        Expanded(
+          child: Obx(() {
+            return Skeletonizer(
+              enabled: _communityController.isLoadingPosts.value,
+              child: _communityController.filteredPosts.isEmpty && !_communityController.isLoadingPosts.value
+                  ? Center(
+                      child: Text("لا توجد منشورات حالياً.",
+                          style: AppTextStyles.body.copyWith(color: AppColors.textMuted)),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _communityController.fetchPosts,
+                      color: context.theme.primaryColor,
+                      child: ListView.builder(
+                        padding: EdgeInsets.all(20.r),
+                        itemCount: _communityController.isLoadingPosts.value ? 2 : _communityController.filteredPosts.length,
+                        itemBuilder: (context, index) {
+                          if (_communityController.isLoadingPosts.value) {
+                            return _buildFakePostCard();
+                          }
+                          final post = _communityController.filteredPosts[index];
+                          return _buildPostCard(post);
+                        },
                       ),
-              );
-            }),
+                    ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchAndSort() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 15.w),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(15.r),
+              ),
+              child: TextField(
+                onChanged: _communityController.search,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  icon: Icon(PhosphorIcons.magnifyingGlass(), color: Colors.white38, size: 20.r),
+                  hintText: "بحث في المنشورات...",
+                  hintStyle: TextStyle(color: Colors.white38, fontSize: 12.sp),
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
           ),
+          SizedBox(width: 10.w),
+          Obx(() => PopupMenuButton<String>(
+                icon: Icon(PhosphorIcons.sortAscending(), color: context.theme.primaryColor),
+                color: AppColors.secondaryNavy,
+                onSelected: _communityController.setSort,
+                itemBuilder: (context) => [
+                  _buildSortItem('newest', 'الأحدث'),
+                  _buildSortItem('popular', 'الأكثر تفاعلاً'),
+                  _buildSortItem('solved', 'المحلولة'),
+                  _buildSortItem('unsolved', 'غير المحلولة'),
+                ],
+              )),
         ],
       ),
+    );
+  }
+
+  PopupMenuItem<String> _buildSortItem(String value, String label) {
+    return PopupMenuItem(
+      value: value,
+      child: Text(label, style: TextStyle(
+        color: _communityController.currentSort.value == value ? context.theme.primaryColor : Colors.white
+      )),
     );
   }
 
@@ -146,11 +194,13 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   CircleAvatar(
                     radius: 20.r,
                     backgroundColor: context.theme.primaryColor.withOpacity(0.2),
-                    backgroundImage: _authController.userProfile.value?.avatarUrl != null &&
+                    backgroundImage: !_communityController.isAnonymous.value && 
+                            _authController.userProfile.value?.avatarUrl != null &&
                             _authController.userProfile.value!.avatarUrl!.isNotEmpty
                         ? CachedNetworkImageProvider(_authController.userProfile.value!.avatarUrl!)
                         : null,
-                    child: _authController.userProfile.value?.avatarUrl == null ||
+                    child: _communityController.isAnonymous.value || 
+                            _authController.userProfile.value?.avatarUrl == null ||
                             _authController.userProfile.value!.avatarUrl!.isEmpty
                         ? Icon(PhosphorIcons.user(), color: context.theme.primaryColor, size: 24.r)
                         : null,
@@ -161,7 +211,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       controller: _postContentController,
                       style: AppTextStyles.body.copyWith(color: Colors.white),
                       decoration: InputDecoration(
-                        hintText: "بماذا تفكر؟ شارك زملائك...",
+                        hintText: _communityController.isAnonymous.value 
+                            ? "انشر سؤالك بهوية مجهولة..." 
+                            : "بماذا تفكر؟ شارك زملائك...",
                         hintStyle: AppTextStyles.body.copyWith(color: Colors.white38),
                         border: InputBorder.none,
                       ),
@@ -171,33 +223,19 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   ),
                 ],
               ),
-              if (_selectedPostImage.value != null)
+              if (_selectedPostImage.value != null || _selectedPostAudio.value != null || _selectedPostPdf.value != null)
                 Padding(
                   padding: EdgeInsets.only(top: 10.h, bottom: 10.h),
-                  child: Stack(
-                    alignment: Alignment.topRight,
+                  child: Wrap(
+                    spacing: 10.w,
+                    runSpacing: 10.h,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(15.r),
-                        child: Image.file(
-                          _selectedPostImage.value!,
-                          height: 150.h,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _selectedPostImage.value = null,
-                        child: Container(
-                          margin: EdgeInsets.all(5.r),
-                          padding: EdgeInsets.all(5.r),
-                          decoration: const BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.close, color: Colors.white, size: 18.r),
-                        ),
-                      ),
+                      if (_selectedPostImage.value != null)
+                        _buildFilePreview(_selectedPostImage.value!, 'image', () => _selectedPostImage.value = null),
+                      if (_selectedPostAudio.value != null)
+                        _buildFilePreview(_selectedPostAudio.value!, 'audio', () => _selectedPostAudio.value = null),
+                      if (_selectedPostPdf.value != null)
+                        _buildFilePreview(_selectedPostPdf.value!, 'pdf', () => _selectedPostPdf.value = null),
                     ],
                   ),
                 ),
@@ -205,20 +243,33 @@ class _CommunityScreenState extends State<CommunityScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  TextButton.icon(
-                    onPressed: _pickImage,
-                    icon: Icon(PhosphorIcons.image(), color: context.theme.primaryColor, size: 20.r),
-                    label: Text("إضافة صورة", style: AppTextStyles.body.copyWith(color: context.theme.primaryColor)),
+                  Row(
+                    children: [
+                      _buildInputIconButton(PhosphorIcons.image(), _pickImage),
+                      _buildInputIconButton(PhosphorIcons.microphone(), _pickAudio),
+                      _buildInputIconButton(PhosphorIcons.filePdf(), _pickPdf),
+                      SizedBox(width: 5.w),
+                      FilterChip(
+                        label: Text("مجهول", style: TextStyle(fontSize: 10.sp, color: _communityController.isAnonymous.value ? Colors.white : Colors.white54)),
+                        selected: _communityController.isAnonymous.value,
+                        onSelected: (val) => _communityController.isAnonymous.value = val,
+                        selectedColor: context.theme.primaryColor,
+                        backgroundColor: Colors.white.withOpacity(0.05),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ],
                   ),
                   ElevatedButton.icon(
-                    onPressed: _communityController.isLoadingPosts.value || (_postContentController.text.isEmpty && _selectedPostImage.value == null)
+                    onPressed: _communityController.isLoadingPosts.value || (_postContentController.text.isEmpty && _selectedPostImage.value == null && _selectedPostAudio.value == null && _selectedPostPdf.value == null)
                         ? null
                         : _createPost,
-                    icon: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20.r),
-                    label: Text("نشر", style: AppTextStyles.button.copyWith(color: Colors.white)),
+                    icon: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 16.r),
+                    label: Text("نشر", style: AppTextStyles.button.copyWith(color: Colors.white, fontSize: 12.sp)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: context.theme.primaryColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r)),
+                      padding: EdgeInsets.symmetric(horizontal: 16.w),
                     ),
                   ),
                 ],
@@ -226,6 +277,44 @@ class _CommunityScreenState extends State<CommunityScreen> {
             ],
           ),
         ));
+  }
+
+  Widget _buildInputIconButton(IconData icon, VoidCallback onTap) {
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(icon, color: context.theme.primaryColor, size: 22.r),
+      padding: EdgeInsets.symmetric(horizontal: 4.w),
+      constraints: const BoxConstraints(),
+    );
+  }
+
+  Widget _buildFilePreview(File file, String type, VoidCallback onRemove) {
+    IconData icon = PhosphorIcons.file();
+    String name = file.path.split('/').last;
+    if (type == 'audio') icon = PhosphorIcons.microphone();
+    if (type == 'pdf') icon = PhosphorIcons.filePdf();
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+      decoration: BoxDecoration(
+        color: context.theme.primaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10.r),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: context.theme.primaryColor, size: 16.r),
+          SizedBox(width: 5.w),
+          Text(name.length > 10 ? "...${name.substring(name.length - 10)}" : name, 
+            style: TextStyle(color: Colors.white, fontSize: 10.sp)),
+          SizedBox(width: 5.w),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(Icons.close, color: Colors.white54, size: 14.r),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildPostCard(Post post) {
@@ -256,12 +345,26 @@ class _CommunityScreenState extends State<CommunityScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(post.userName ?? "مستخدم كورسيريا", style: AppTextStyles.header.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.sp)),
+                  Row(
+                    children: [
+                      Text(post.userName ?? "مستخدم كورسيريا", style: AppTextStyles.header.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.sp)),
+                      if (post.isPinned)
+                        Padding(
+                          padding: EdgeInsets.only(right: 8.w),
+                          child: Icon(PhosphorIcons.pushPin(PhosphorIconsStyle.fill), color: Colors.amber, size: 14.sp),
+                        ),
+                      if (post.isSolved)
+                        Padding(
+                          padding: EdgeInsets.only(right: 8.w),
+                          child: Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 14.sp),
+                        ),
+                    ],
+                  ),
                   Text(AppConstants.formatTimeAgo(post.createdAt), style: AppTextStyles.body.copyWith(color: Colors.white38, fontSize: 10.sp)),
                 ],
               ),
               const Spacer(),
-              Icon(Icons.more_horiz, color: Colors.white38, size: 20.sp),
+              _buildPostOptions(post),
             ],
           ),
           SizedBox(height: 16.h),
@@ -349,6 +452,84 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
+  Widget _buildPostOptions(Post post) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_horiz, color: Colors.white38, size: 20.sp),
+      color: AppColors.secondaryNavy,
+      itemBuilder: (context) => [
+        if (_authController.isTeacher)
+          PopupMenuItem(
+            value: 'pin',
+            child: Row(
+              children: [
+                Icon(post.isPinned ? PhosphorIcons.pushPin(PhosphorIconsStyle.fill) : PhosphorIcons.pushPin(), color: Colors.amber, size: 18.sp),
+                SizedBox(width: 10.w),
+                Text(post.isPinned ? "إلغاء التثبيت" : "تثبيت المنشور", style: const TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+        if (_authController.userData['id'] == post.userId)
+          PopupMenuItem(
+            value: 'solved',
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 18.sp),
+                SizedBox(width: 10.w),
+                Text(post.isSolved ? "إلغاء الحل" : "تم الحل", style: const TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+        PopupMenuItem(
+          value: 'report',
+          child: Row(
+            children: [
+              Icon(Icons.report_problem_rounded, color: Colors.redAccent, size: 18.sp),
+              SizedBox(width: 10.w),
+              const Text("إبلاغ", style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+      ],
+      onSelected: (val) {
+        if (val == 'pin') {
+          _communityController.pinPost(post.id, post.isPinned);
+        } else if (val == 'solved') {
+          _communityController.toggleSolved(post.id, post.isSolved);
+        } else if (val == 'report') {
+          _showReportDialog(post.id, 'post');
+        }
+      },
+    );
+  }
+
+  void _showReportDialog(String id, String type) {
+    final reasonController = TextEditingController();
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: AppColors.secondaryNavy,
+        title: Text("إبلاغ عن $type", style: const TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: reasonController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: "سبب الإبلاغ...",
+            hintStyle: TextStyle(color: Colors.white38),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text("إلغاء")),
+          ElevatedButton(
+            onPressed: () {
+              _communityController.reportContent(type, id, reasonController.text);
+              Get.back();
+            },
+            child: const Text("إرسال"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
@@ -361,13 +542,37 @@ class _CommunityScreenState extends State<CommunityScreen> {
     }
   }
 
+  Future<void> _pickAudio() async {
+    // Using file_picker for audio
+    final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+    if (result != null && result.files.single.path != null) {
+      _selectedPostAudio.value = File(result.files.single.path!);
+    }
+  }
+
+  Future<void> _pickPdf() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    if (result != null && result.files.single.path != null) {
+      _selectedPostPdf.value = File(result.files.single.path!);
+    }
+  }
+
   Future<void> _createPost() async {
     await _communityController.createPost(
       _postContentController.text,
       image: _selectedPostImage.value,
+      audio: _selectedPostAudio.value,
+      pdf: _selectedPostPdf.value,
+      tags: _selectedTags.toList(),
     );
     _postContentController.clear();
     _selectedPostImage.value = null;
+    _selectedPostAudio.value = null;
+    _selectedPostPdf.value = null;
+    _selectedTags.clear();
   }
 
   void _showCommentsBottomSheet(Post post) {

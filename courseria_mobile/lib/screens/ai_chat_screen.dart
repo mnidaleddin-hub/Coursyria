@@ -38,6 +38,14 @@ class _AIChatScreenState extends State<AIChatScreen> {
           ? 'أهلاً بك يا بطل! أنا مساعدك الذكي لدرس "${widget.lessonTitle}". كيف يمكنني مساعدتك في فهم المحتوى اليوم؟'
           : 'مرحباً بك في مركز الدعم الذكي! أنا هنا لمساعدتك في أي استفسار حول المنصة أو المناهج الدراسية. كيف يمكنني خدمتك؟'
     });
+
+    // Handle direct actions from MainWrapper
+    final args = Get.arguments;
+    if (args != null && args is Map && args.containsKey('action')) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _handleAIAction(args['action'] as String);
+      });
+    }
   }
 
   void _scrollToBottom() {
@@ -89,17 +97,23 @@ class _AIChatScreenState extends State<AIChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBg,
+      backgroundColor: context.theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("المساعد الذكي", style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
             if (widget.lessonTitle != null)
-              Text(widget.lessonTitle!, style: TextStyle(fontSize: 10.sp, color: Colors.white70), overflow: TextOverflow.ellipsis),
+              Text(widget.lessonTitle!, style: TextStyle(fontSize: 10.sp, color: context.theme.textTheme.bodySmall?.color), overflow: TextOverflow.ellipsis),
           ],
         ),
-        backgroundColor: AppColors.secondaryNavy,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome_motion_rounded, color: AppColors.accentTeal),
+            onPressed: _showContextOptions,
+          ),
+        ],
+        backgroundColor: Colors.transparent,
         elevation: 0,
       ),
       body: Column(
@@ -164,9 +178,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
   Widget _buildInputArea() {
     return Container(
       padding: EdgeInsets.all(20.r),
-      decoration: const BoxDecoration(
-        color: AppColors.secondaryNavy,
-        borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+      decoration: BoxDecoration(
+        color: context.theme.cardColor,
+        borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
       ),
       child: Row(
         children: [
@@ -174,12 +188,12 @@ class _AIChatScreenState extends State<AIChatScreen> {
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 20.w),
               decoration: BoxDecoration(
-                color: AppColors.primaryNavy.withOpacity(0.5),
+                color: context.theme.scaffoldBackgroundColor,
                 borderRadius: BorderRadius.circular(25.r),
               ),
               child: TextField(
                 controller: _messageController,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: context.theme.textTheme.bodyLarge?.color),
                 decoration: const InputDecoration(
                   hintText: "اسأل أي شيء عن الدرس...",
                   hintStyle: TextStyle(color: Colors.white24),
@@ -201,5 +215,89 @@ class _AIChatScreenState extends State<AIChatScreen> {
         ],
       ),
     );
+  }
+
+  void _showContextOptions() {
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.all(24.r),
+        decoration: BoxDecoration(
+          color: context.theme.scaffoldBackgroundColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("أدوات الذكاء الاصطناعي", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            SizedBox(height: 24.h),
+            _buildContextAction(
+              "تلخيص المحتوى",
+              Icons.summarize_rounded,
+              Colors.blue,
+              () => _handleAIAction('summarize'),
+            ),
+            _buildContextAction(
+              "توليد اختبار سريع",
+              Icons.quiz_rounded,
+              Colors.purple,
+              () => _handleAIAction('quiz'),
+            ),
+            _buildContextAction(
+              "ترجمة المحتوى",
+              Icons.translate_rounded,
+              Colors.orange,
+              () => _handleAIAction('translate'),
+            ),
+            _buildContextAction(
+              "دعم فني",
+              Icons.support_agent_rounded,
+              Colors.green,
+              () => _handleAIAction('support'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContextAction(String title, IconData icon, Color color, VoidCallback onTap) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      onTap: () {
+        Get.back();
+        onTap();
+      },
+    );
+  }
+
+  Future<void> _handleAIAction(String action) async {
+    final aiController = Get.find<AIController>();
+    final assistantMessages = _messages.where((m) => m['role'] == 'assistant').toList();
+    final content = assistantMessages.isNotEmpty ? assistantMessages.last['content'] ?? "" : "";
+    
+    switch (action) {
+      case 'summarize':
+        await aiController.generateLessonSummary(content);
+        break;
+      case 'quiz':
+        await aiController.generateSimilarQuiz([{'content': content}]);
+        break;
+      case 'translate':
+        await aiController.translateLesson(content, "English");
+        break;
+      case 'simplify_kids':
+        await aiController.simplifyForKids(content);
+        break;
+      case 'flashcards':
+        await aiController.generateLessonFlashcards(widget.lessonId ?? 'global', content);
+        break;
+      case 'table':
+        await aiController.convertToTable(content);
+        break;
+      case 'support':
+        _messages.add({'role': 'assistant', 'content': 'تم تفعيل وضع الدعم الفني. كيف يمكنني مساعدتك في مشاكل المنصة؟'});
+        break;
+    }
   }
 }

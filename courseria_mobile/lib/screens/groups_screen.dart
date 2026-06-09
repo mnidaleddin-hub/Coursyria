@@ -160,98 +160,64 @@ class _GroupsScreenState extends State<GroupsScreen> with SingleTickerProviderSt
   }
 
   Widget _buildGroupCard(Group group) {
-    return GestureDetector(
-      onTap: () => Get.to(() => GroupDetailsScreen(group: group)),
-      child: Container(
-        margin: EdgeInsets.only(bottom: 15.h),
-        decoration: BoxDecoration(
-          color: Get.isDarkMode ? AppColors.darkCard : AppColors.surfaceWhite,
-          borderRadius: BorderRadius.circular(15.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
+    return Container(
+      margin: EdgeInsets.only(bottom: 16.h),
+      decoration: BoxDecoration(
+        color: Get.isDarkMode ? AppColors.darkCard : AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: EdgeInsets.all(16.r),
+        leading: Container(
+          width: 50.r,
+          height: 50.r,
+          decoration: BoxDecoration(
+            color: context.theme.primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(15.r),
+          ),
+          child: Icon(PhosphorIcons.usersThree(), color: context.theme.primaryColor, size: 24.r),
+        ),
+        title: Row(
+          children: [
+            Expanded(child: Text(group.name, style: AppTextStyles.header.copyWith(fontSize: 16.sp, color: Get.isDarkMode ? Colors.white : AppColors.primaryNavy))),
+            if (group.myRole == 'teacher')
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+                decoration: BoxDecoration(color: Colors.amber, borderRadius: BorderRadius.circular(5.r)),
+                child: Text("معلم", style: TextStyle(fontSize: 10.sp, color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
           ],
         ),
-        child: Column(
+        subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (group.coverImageUrl != null && group.coverImageUrl!.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(15.r)),
-                child: CachedNetworkImage(
-                  imageUrl: group.coverImageUrl!,
-                  height: 120.h,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    height: 120.h,
-                    color: Colors.grey[200],
-                    child: const AppLoadingIndicator(),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    height: 120.h,
-                    color: Colors.grey[200],
-                    child: Icon(Icons.broken_image, color: AppColors.textMuted, size: 50.r),
-                  ),
-                ),
-              )
-            else
-              Container(
-                height: 120.h,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: context.theme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(15.r)),
-                ),
-                child: Icon(PhosphorIcons.usersThree(), color: context.theme.primaryColor, size: 50.r),
-              ),
-            Padding(
-              padding: EdgeInsets.all(15.r),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    group.name,
-                    style: AppTextStyles.header.copyWith(fontSize: 18.sp, color: Get.isDarkMode ? Colors.white : AppColors.primaryNavy),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 5.h),
-                  Text(
-                    group.description,
-                    style: AppTextStyles.body.copyWith(fontSize: 12.sp, color: AppColors.textMuted),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 10.h),
-                  Row(
-                    children: [
-                      Icon(PhosphorIcons.users(), size: 18.r, color: context.theme.primaryColor),
-                      SizedBox(width: 5.w),
-                      Text(
-                        '${group.memberCount} أعضاء',
-                        style: AppTextStyles.body.copyWith(fontSize: 12.sp, color: Get.isDarkMode ? Colors.white70 : AppColors.textMain),
-                      ),
-                      SizedBox(width: 15.w),
-                      Icon(PhosphorIcons.chats(), size: 18.r, color: context.theme.primaryColor),
-                      SizedBox(width: 5.w),
-                      Text(
-                        '${group.postCount} منشورات',
-                        style: AppTextStyles.body.copyWith(fontSize: 12.sp, color: Get.isDarkMode ? Colors.white70 : AppColors.textMain),
-                      ),
-                      const Spacer(),
-                      if (group.isPrivate)
-                        Icon(PhosphorIcons.lockSimple(), size: 18.r, color: AppColors.textMuted),
-                    ],
-                  ),
-                ],
-              ),
+            SizedBox(height: 5.h),
+            Text(group.description, style: AppTextStyles.body.copyWith(fontSize: 12.sp, color: AppColors.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis),
+            SizedBox(height: 8.h),
+            Row(
+              children: [
+                Icon(PhosphorIcons.users(), size: 14.r, color: context.theme.primaryColor),
+                SizedBox(width: 5.w),
+                Text("${group.memberCount} عضو", style: TextStyle(fontSize: 11.sp, color: AppColors.textMuted)),
+                SizedBox(width: 15.w),
+                Icon(PhosphorIcons.chatCircleText(), size: 14.r, color: Colors.greenAccent),
+                SizedBox(width: 5.w),
+                Text("نشط الآن", style: TextStyle(fontSize: 11.sp, color: Colors.greenAccent)),
+              ],
             ),
           ],
         ),
+        onTap: () {
+          _groupController.currentGroup.value = group;
+          Get.to(() => GroupDetailsScreen(group: group));
+        },
       ),
     );
   }

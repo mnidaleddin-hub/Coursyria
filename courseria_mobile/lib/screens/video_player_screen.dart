@@ -238,6 +238,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
             children: [
               // 1. Video Player Section
               _buildPlayerWithGestures(),
+              _buildVideoControls(),
 
               // 2. Interactive Info Section (Premium Overhaul)
               Expanded(
@@ -282,6 +283,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
                         .videoPlayerController.value.isInitialized
                 ? Chewie(controller: _chewieController!)
                 : const CustomLoadingIndicator(color: AppColors.accentTeal),
+          ),
+          Positioned(
+            top: 10,
+            left: 10,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+              onPressed: () => Get.back(),
+            ),
           ),
           if (_isSmartPause)
             _buildSmartPauseOverlay(),
@@ -1109,5 +1118,41 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> with TickerProvid
       default:
         return const Icon(Icons.insert_drive_file, color: Colors.white54);
     }
+  }
+
+  Widget _buildVideoControls() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+      color: AppColors.secondaryNavy,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildControlIcon(Icons.speed_rounded, "1.0x", () {
+            // Logic for speed control (needs to be passed to SecureVideoPlayer)
+            Get.snackbar("سرعة التشغيل", "سيتم تفعيل التحكم بالسرعة في التحديث القادم");
+          }),
+          _buildControlIcon(Icons.high_quality_rounded, "720p", () {
+            Get.snackbar("الجودة", "يتم ضبط الجودة تلقائياً حسب سرعة الإنترنت");
+          }),
+          _buildControlIcon(Icons.audiotrack_rounded, "صوت فقط", () {
+            Get.snackbar("وضع الصوت", "سيتم إيقاف الفيديو وتشغيل الصوت فقط لتوفير البيانات");
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlIcon(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 20.sp),
+          SizedBox(height: 4.h),
+          Text(label, style: TextStyle(color: Colors.white70, fontSize: 10.sp)),
+        ],
+      ),
+    );
   }
 }

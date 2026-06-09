@@ -128,7 +128,9 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
                     SizedBox(height: 20.h),
                     _buildJoinLeaveButton(group),
                     if (group.isMember == true) ...[
-                      SizedBox(height: 16.h),
+                      SizedBox(height: 12.h),
+                      _buildChatButton(group),
+                      SizedBox(height: 12.h),
                       _buildGroupAIActions(group),
                     ],
                     SizedBox(height: 20.h),
@@ -160,6 +162,22 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
           ],
         );
       }),
+    );
+  }
+
+  Widget _buildChatButton(Group group) {
+    return ElevatedButton.icon(
+      onPressed: () {
+        Get.to(() => CourseChatScreen(groupId: group.id, groupName: group.name));
+      },
+      icon: Icon(PhosphorIcons.chatCircleDots(), color: Colors.white),
+      label: const Text("الدردشة الجماعية والأسئلة"),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.greenAccent.withOpacity(0.2),
+        foregroundColor: Colors.greenAccent,
+        minimumSize: Size(double.infinity, 50.h),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r), side: const BorderSide(color: Colors.greenAccent)),
+      ),
     );
   }
 

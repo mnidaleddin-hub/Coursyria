@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,13 +10,22 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/constants/constants.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'package:flutter_windowmanager/flutter_windowmanager.dart';
+
 class SystemController extends GetxController {
   final SupabaseClient _supabase = Supabase.instance.client;
   final _secureStorage = Get.find<FlutterSecureStorage>();
+  // Using a generic storage for preferences (e.g., GetStorage)
+  final _storage = Get.find<FlutterSecureStorage>(); // Mocking with secure storage for now or define elsewhere
   
   var isCheckingUpdate = false.obs;
   var updateProgress = 0.0.obs;
   var isDownloading = false.obs;
+  var isScreenshotProtected = false.obs;
+
+  // Connectivity State
+  final Rx<ConnectivityResult> connectivityStatus = ConnectivityResult.wifi.obs;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   // Phase 5: Administrative & Preference Options
   var autoDownload = false.obs;
@@ -56,11 +67,72 @@ class SystemController extends GetxController {
         .hasMatch(id);
   }
 
+  void toggleScreenshotProtection(bool enable) async {
+    if (kIsWeb) return;
+    try {
+      if (enable) {
+        await FlutterWindowManager.addFlags(FlutterWindowManager.FLAG_SECURE);
+      } else {
+        await FlutterWindowManager.clearFlags(FlutterWindowManager.FLAG_SECURE);
+      }
+      isScreenshotProtected.value = enable;
+      _secureStorage.write(key: 'screenshot_protection', value: enable.toString());
+    } catch (e) {
+      debugPrint("Error toggling screenshot protection: $e");
+    }
+  }
+
+  bool containsProfanity(String text) {
+    final List<String> badWords = [
+      'badword1', 'badword2', 'سيء1', 'سيء2'
+    ]; // In production, this should be a large list or an API call
+    for (var word in badWords) {
+      if (text.toLowerCase().contains(word.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   void onInit() {
     super.onInit();
     _loadOfflineFlag();
     _loadPreferences();
+    initConnectivity();
+    _loadScreenshotProtection();
+  }
+
+  Future<void> _loadScreenshotProtection() async {
+    final flag = await _secureStorage.read(key: 'screenshot_protection');
+    if (flag == 'true') {
+      toggleScreenshotProtection(true);
+    }
+  }
+
+  @override
+  void onClose() {
+    _connectivitySubscription?.cancel();
+    super.onClose();
+  }
+
+  Future<void> initConnectivity() async {
+    final Connectivity connectivity = Connectivity();
+    try {
+      final List<ConnectivityResult> result = await connectivity.checkConnectivity();
+      if (result.isNotEmpty) {
+        connectivityStatus.value = result.first;
+      }
+    } catch (e) {
+      debugPrint('❌ Connectivity Check Error: $e');
+    }
+
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      if (results.isNotEmpty) {
+        connectivityStatus.value = results.first;
+      }
+    });
   }
 
   Future<void> _loadOfflineFlag() async {
@@ -82,9 +154,27 @@ class SystemController extends GetxController {
     if (progress != null) loadingProgress.value = progress;
   }
 
-  void toggleBlueLightFilter(bool val) {
-    isBlueLightFilterEnabled.value = val;
-    // storage.write('blue_light_filter', val);
+  Future<void> _loadPreferences() async {
+    try {
+      // Using _secureStorage as a fallback since _storage might not be fully configured
+      final themeColor = await _secureStorage.read(key: 'app_theme_color');
+      if (themeColor != null) {
+        // Get.find<ThemeController>().selectedThemeName.value = themeColor;
+      }
+      
+      final filter = await _secureStorage.read(key: 'blue_light_filter');
+      isBlueLightFilterEnabled.value = filter == 'true';
+      
+      final autoDown = await _secureStorage.read(key: 'auto_download');
+      autoDownload.value = autoDown == 'true';
+    } catch (e) {
+      debugPrint("Error loading preferences: $e");
+    }
+  }
+
+  void toggleBlueLightFilter(bool value) {
+    isBlueLightFilterEnabled.value = value;
+    _secureStorage.write(key: 'blue_light_filter', value: value.toString());
   }
 
   @override
@@ -95,14 +185,16 @@ class SystemController extends GetxController {
     }
   }
 
-  void _loadPreferences() {
-    // Mocking loading from storage
-    // final storage = GetStorage();
-    // autoDownload.value = storage.read('auto_download') ?? false;
-    // String? modelIndex = storage.read('selected_ai_model');
-    // if (modelIndex != null) {
-    //   selectedAIModel.value = AIModel.values[int.parse(modelIndex)];
-    // }
+  // --- Performance & Batching ---
+  Future<void> runOptimizedTask(Future<void> Function() task) async {
+    try {
+      isGlobalLoading.value = true;
+      await task();
+    } catch (e) {
+      debugPrint("Optimized Task Error: $e");
+    } finally {
+      isGlobalLoading.value = false;
+    }
   }
 
   void updateAIModel(AIModel model) {

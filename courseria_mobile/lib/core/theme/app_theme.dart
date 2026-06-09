@@ -102,5 +102,94 @@ class AppTheme {
     'Amber': Color(0xFFFFA000),
     'Navy': Color(0xFF1A237E),
     'Emerald': Color(0xFF2E7D32),
+    'Gold': Color(0xFFFFD700),
+    'Sage': Color(0xFF87A96B),
+    'ElectricBlue': Color(0xFF007FFF),
+    'MidnightPurple': Color(0xFF2E1A47),
   };
+
+  // 1. Coursyria Original
+  static ThemeData originalTheme(bool isDark) {
+    final primary = themeColors['Navy']!;
+    return isDark ? darkTheme(primary) : lightTheme(primary);
+  }
+
+  // 2. Light Academia
+  static ThemeData academiaTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      textTheme: GoogleFonts.notoSansArabicTextTheme(),
+      primaryColor: themeColors['Sage'],
+      scaffoldBackgroundColor: const Color(0xFFFDF5E6), // Cream
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: themeColors['Sage']!,
+        primary: themeColors['Sage']!,
+        surface: const Color(0xFFFDF5E6),
+        onSurface: const Color(0xFF5D4037), // Dark brown text
+      ),
+      cardTheme: CardTheme(
+        color: Colors.white,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // 3. Dark Pro (OLED)
+  static ThemeData darkProTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      textTheme: GoogleFonts.notoSansArabicTextTheme(ThemeData.dark().textTheme),
+      primaryColor: themeColors['ElectricBlue'],
+      scaffoldBackgroundColor: Colors.black,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: themeColors['ElectricBlue']!,
+        primary: themeColors['ElectricBlue']!,
+        surface: const Color(0xFF121212),
+        onSurface: Colors.white,
+        brightness: Brightness.dark,
+      ),
+      cardTheme: CardTheme(
+        color: const Color(0xFF0A0A0A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF1A1A1A)),
+        ),
+      ),
+    );
+  }
+
+  // 4. Vibrant Learn
+  static ThemeData vibrantTheme(bool isDark) {
+    final primary = isDark ? Colors.pinkAccent : Colors.deepPurpleAccent;
+    return (isDark ? darkTheme(primary) : lightTheme(primary)).copyWith(
+      scaffoldBackgroundColor: isDark ? const Color(0xFF1A0B2E) : const Color(0xFFF5F0FF),
+    );
+  }
+
+  // 5. Minimal White
+  static ThemeData minimalTheme() {
+    return lightTheme(Colors.black).copyWith(
+      scaffoldBackgroundColor: Colors.white,
+      cardTheme: CardTheme(
+        color: Colors.white,
+        elevation: 4,
+        shadowColor: Colors.black12,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  // 6. Midnight Study
+  static ThemeData midnightTheme() {
+    return darkTheme(themeColors['MidnightPurple']!).copyWith(
+      scaffoldBackgroundColor: const Color(0xFF100818),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: themeColors['MidnightPurple']!,
+        secondary: themeColors['Teal']!,
+      ),
+    );
+  }
 }

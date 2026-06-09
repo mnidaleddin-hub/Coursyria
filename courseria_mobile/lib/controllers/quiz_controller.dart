@@ -23,7 +23,18 @@ class QuizController extends GetxController {
   var currentQuestionIndex = 0.obs;
   var userAnswers = <String, String>{}.obs; // questionId -> answerText
   var timerSeconds = 0.obs;
+  var starredQuestions = <String>{}.obs; // Set of starred question IDs
   Timer? _quizTimer;
+
+  bool isStarred(String questionId) => starredQuestions.contains(questionId);
+
+  void toggleStar(String questionId) {
+    if (starredQuestions.contains(questionId)) {
+      starredQuestions.remove(questionId);
+    } else {
+      starredQuestions.add(questionId);
+    }
+  }
 
   /// Fetches all quizzes for a specific course.
   Future<void> fetchQuizzesForCourse(String courseId) async {
@@ -190,10 +201,11 @@ class QuizController extends GetxController {
       quizResults[quizId] = result;
       AnalyticsService.logQuizCompletion(quizId, score, isPassed);
 
-      // Reward points if passed
+      // Reward points and XP if passed
       if (isPassed) {
-        await _authController.addPoints(50); // Base reward points
-        Get.snackbar("بطل! 🏆", "لقد اجتزت الاختبار وحصلت على 50 نقطة إضافية!",
+        final gamificationController = Get.find<GamificationController>();
+        await gamificationController.addXP(200); // Higher reward for passing quiz
+        Get.snackbar("بطل! 🏆", "لقد اجتزت الاختبار وحصلت على 200 XP!",
             backgroundColor: AppColors.accentTeal, colorText: Colors.white);
       }
 

@@ -12,78 +12,84 @@ class ThemeController extends GetxController {
   final _themeModeKey = 'themeMode';
   final _themeColorKey = 'selectedThemeColor';
   final _customColorKey = 'customPrimaryColor';
+  final _fontSizeFactorKey = 'fontSizeFactor';
+  final _selectedFontKey = 'selectedFont';
+  final _emergencyNightModeKey = 'emergencyNightMode';
 
   // Observables
   var themeMode = ThemeMode.system.obs;
-  var selectedThemeName = 'Indigo'.obs; // 'Indigo', 'Teal', 'Amber', 'Navy', 'Emerald', 'Custom'
+  var selectedThemeName = 'Original'.obs; 
   var customPrimaryColor = const Color(0xFF3F51B5).obs;
+  
+  // Feature 184: Custom Fonts
+  var selectedFontFamily = 'Amiri'.obs; // Amiri, Tahoma, Cairo, etc.
+  
+  // Feature 186: Text Scaling
+  var fontSizeFactor = 1.0.obs; // 1.0 to 2.0
+  
+  // Feature 185: Emergency Night Mode
+  var isEmergencyNightMode = false.obs;
 
   @override
   void onInit() {
     super.onInit();
-    _loadInitialSettings();
+    _loadThemeSettings();
   }
 
-  void _loadInitialSettings() {
-    // 1. Load Theme Mode
-    String? savedMode = _storage.read(_themeModeKey);
-    if (savedMode != null) {
-      themeMode.value = ThemeMode.values.firstWhere((e) => e.toString() == savedMode);
-    }
+  void _loadThemeSettings() {
+    fontSizeFactor.value = _storage.read(_fontSizeFactorKey) ?? 1.0;
+    selectedFontFamily.value = _storage.read(_selectedFontKey) ?? 'Amiri';
+    isEmergencyNightMode.value = _storage.read(_emergencyNightModeKey) ?? false;
+  }
 
-    // 2. Load Theme Color Name
-    String? savedColorName = _storage.read(_themeColorKey);
-    if (savedColorName != null) {
-      selectedThemeName.value = savedColorName;
-    }
+  void updateFontSize(double factor) {
+    fontSizeFactor.value = factor;
+    _storage.write(_fontSizeFactorKey, factor);
+  }
 
-    // 3. Load Custom Color
-    int? savedCustomColor = _storage.read(_customColorKey);
-    if (savedCustomColor != null) {
-      customPrimaryColor.value = Color(savedCustomColor);
-    }
+  void updateFontFamily(String font) {
+    selectedFontFamily.value = font;
+    _storage.write(_selectedFontKey, font);
+    _refreshTheme();
+  }
+
+  void toggleEmergencyNightMode(bool value) {
+    isEmergencyNightMode.value = value;
+    _storage.write(_emergencyNightModeKey, value);
+  }
+
+  ThemeData get currentTheme {
+    bool isDark = themeMode.value == ThemeMode.dark || (themeMode.value == ThemeMode.system && Get.isPlatformDarkMode);
     
-    // Initial UI apply
-    Get.changeThemeMode(themeMode.value);
-  }
-
-  // Get current active primary color
-  Color get currentPrimaryColor {
-    if (selectedThemeName.value == 'Custom') {
-      return customPrimaryColor.value;
+    switch (selectedThemeName.value) {
+      case 'Original':
+        return AppTheme.originalTheme(isDark);
+      case 'Academia':
+        return isDark ? AppTheme.darkTheme(AppTheme.themeColors['Sage']!) : AppTheme.academiaTheme();
+      case 'DarkPro':
+        return isDark ? AppTheme.darkProTheme() : AppTheme.minimalTheme();
+      case 'Vibrant':
+        return AppTheme.vibrantTheme(isDark);
+      case 'Minimal':
+        return isDark ? AppTheme.darkProTheme() : AppTheme.minimalTheme();
+      case 'Midnight':
+        return AppTheme.midnightTheme();
+      default:
+        return isDark ? AppTheme.darkTheme(currentPrimaryColor) : AppTheme.lightTheme(currentPrimaryColor);
     }
-    return AppTheme.themeColors[selectedThemeName.value] ?? AppTheme.themeColors['Indigo']!;
   }
 
-  void changeThemeMode(ThemeMode mode) {
-    themeMode.value = mode;
-    Get.changeThemeMode(mode);
-    _storage.write(_themeModeKey, mode.toString());
-    _syncWithSupabase();
+  void _refreshTheme() {
+    Get.changeTheme(currentTheme);
   }
 
   void changeThemeColor(String colorName) {
     selectedThemeName.value = colorName;
     _storage.write(_themeColorKey, colorName);
     
-    // Force refresh theme in GetMaterialApp
-    _refreshTheme();
+    // Getx requires a manual trigger for dynamic theme changes
+    Get.changeTheme(currentTheme);
     _syncWithSupabase();
-  }
-
-  void setCustomColor(Color color) {
-    customPrimaryColor.value = color;
-    selectedThemeName.value = 'Custom';
-    _storage.write(_customColorKey, color.value);
-    _storage.write(_themeColorKey, 'Custom');
-    
-    _refreshTheme();
-    _syncWithSupabase();
-  }
-
-  void _refreshTheme() {
-    // Getx requires a manual trigger sometimes for dynamic theme colors
-    Get.changeTheme(isDarkMode ? AppTheme.darkTheme(currentPrimaryColor) : AppTheme.lightTheme(currentPrimaryColor));
   }
 
   bool get isDarkMode {

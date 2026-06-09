@@ -11,8 +11,10 @@ class GroupPost {
   final int likesCount;
   final int commentsCount;
   final bool isPinned;
+  final bool isSolved;
+  final bool isAnonymous;
   final DateTime createdAt;
-  final bool? isLiked; // To be set dynamically
+  final bool? isLiked; 
 
   GroupPost({
     required this.id,
@@ -25,23 +27,27 @@ class GroupPost {
     required this.likesCount,
     required this.commentsCount,
     required this.isPinned,
+    this.isSolved = false,
+    this.isAnonymous = false,
     required this.createdAt,
     this.isLiked,
   });
 
   factory GroupPost.fromJson(Map<String, dynamic> json) {
-    final profiles = json['profiles']; // Supabase join result
+    final profiles = json['profiles']; 
     return GroupPost(
       id: json['id'] as String,
       groupId: json['group_id'] as String,
       userId: json['user_id'] as String,
-      userName: profiles != null ? profiles['full_name'] as String? : null,
-      userAvatarUrl: profiles != null ? profiles['avatar_url'] as String? : null,
+      userName: json['is_anonymous'] == true ? "مستخدم مجهول" : (profiles != null ? profiles['full_name'] as String? : null),
+      userAvatarUrl: json['is_anonymous'] == true ? null : (profiles != null ? profiles['avatar_url'] as String? : null),
       content: json['content'] as String,
       imageUrl: json['image_url'] as String?,
       likesCount: json['likes_count'] as int? ?? 0,
       commentsCount: json['comments_count'] as int? ?? 0,
       isPinned: json['is_pinned'] as bool? ?? false,
+      isSolved: json['is_solved'] ?? false,
+      isAnonymous: json['is_anonymous'] ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
       isLiked: json['is_liked'] as bool?,
     );
@@ -57,6 +63,8 @@ class GroupPost {
       'likes_count': likesCount,
       'comments_count': commentsCount,
       'is_pinned': isPinned,
+      'is_solved': isSolved,
+      'is_anonymous': isAnonymous,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -72,6 +80,8 @@ class GroupPost {
     int? likesCount,
     int? commentsCount,
     bool? isPinned,
+    bool? isSolved,
+    bool? isAnonymous,
     DateTime? createdAt,
     bool? isLiked,
   }) {
@@ -86,6 +96,8 @@ class GroupPost {
       likesCount: likesCount ?? this.likesCount,
       commentsCount: commentsCount ?? this.commentsCount,
       isPinned: isPinned ?? this.isPinned,
+      isSolved: isSolved ?? this.isSolved,
+      isAnonymous: isAnonymous ?? this.isAnonymous,
       createdAt: createdAt ?? this.createdAt,
       isLiked: isLiked ?? this.isLiked,
     );

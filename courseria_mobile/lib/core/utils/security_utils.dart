@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:flutter/services.dart';
+import 'package:safe_device/safe_device.dart';
 
 class SecurityUtils {
   /// Generates a unique key based on the User's Supabase ID
@@ -38,5 +40,29 @@ class SecurityUtils {
     final decrypted = encrypter.decryptBytes(encrypt.Encrypted(data), iv: iv);
     
     return Uint8List.fromList(decrypted);
+  }
+
+  /// Check if the device is safe (No root, no emulator)
+  static Future<bool> isDeviceSecure() async {
+    bool isRooted = await SafeDevice.isJailBroken;
+    bool isRealDevice = await SafeDevice.isRealDevice;
+    bool isMockLocation = await SafeDevice.canMockLocation;
+
+    if (isRooted || !isRealDevice || isMockLocation) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Prevent Screenshots (Android only)
+  static Future<void> preventScreenshots() async {
+    if (Platform.isAndroid) {
+      const platform = MethodChannel('com.coursyria/security');
+      try {
+        await platform.invokeMethod('preventScreenshots');
+      } on PlatformException catch (e) {
+        print("Failed to prevent screenshots: ${e.message}");
+      }
+    }
   }
 }

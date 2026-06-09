@@ -16,86 +16,243 @@ class CommunityController extends GetxController {
   var posts = <Post>[].obs;
   var commentsForPost = <Comment>[].obs;
   var isCommentsLoading = false.obs;
+  var isAnonymous = false.obs;
+  var selectedTags = <String>[].obs;
+  var searchQuery = "".obs;
+   var currentSort = 'newest'.obs;
+   var offlinePostQueue = <Map<String, dynamic>>[].obs;
+
+  List<Post> get filteredPosts {
+    if (searchQuery.value.isEmpty) return posts;
+    return posts.where((post) {
+      return post.content.toLowerCase().contains(searchQuery.value.toLowerCase()) ||
+          post.tags.any((tag) => tag.toLowerCase().contains(searchQuery.value.toLowerCase()));
+    }).toList();
+  }
+
+  void search(String query) {
+    searchQuery.value = query;
+  }
 
   @override
   void onInit() {
     super.onInit();
-    fetchPosts(); // Fetch posts on controller initialization
+    fetchPosts(); 
+    _listenToPosts();
+    _loadOfflineQueue();
   }
 
-  /// Fetches all community posts with user and like status.
+  void _loadOfflineQueue() {
+    final cached = GetStorage().read('community_offline_queue');
+    if (cached != null) {
+      offlinePostQueue.assignAll(List<Map<String, dynamic>>.from(cached));
+    }
+  }
+
+  void _saveOfflineQueue() {
+    GetStorage().write('community_offline_queue', offlinePostQueue.toList());
+  }
+
+  Future<void> syncOfflinePosts() async {
+    if (offlinePostQueue.isEmpty) return;
+    
+    final List<Map<String, dynamic>> toSync = List.from(offlinePostQueue);
+    offlinePostQueue.clear();
+    _saveOfflineQueue();
+
+    for (var postData in toSync) {
+      try {
+        await _supabase.from('posts').insert(postData);
+        
+        // Auto-welcome (Feature 60)
+        _checkAndAddWelcomeComment(userId);
+      } catch (e) {
+        offlinePostQueue.add(postData);
+        _saveOfflineQueue();
+      }
+    }
+    fetchPosts();
+  }
+
+  void setSort(String sort) {
+    currentSort.value = sort;
+    fetchPosts();
+  }
+
+  void _listenToPosts() {
+    _supabase.from('posts').stream(primaryKey: ['id']).listen((data) {
+      // Real-time update logic
+      fetchPosts();
+    });
+  }
+
+  void _loadPostsFromCache() {
+    final cachedData = GetStorage().read('cached_community_posts');
+    if (cachedData != null) {
+      posts.assignAll((cachedData as List).map((e) => Post.fromJson(e)).toList());
+    }
+  }
+
+  void _savePostsToCache(List<Post> fetchedPosts) {
+    GetStorage().write('cached_community_posts', fetchedPosts.map((e) => e.toJson()).toList());
+  }
+
   Future<void> fetchPosts() async {
-    isLoadingPosts.value = true;
+    _loadPostsFromCache();
+    if (posts.isEmpty) {
+      isLoadingPosts.value = true;
+    }
     try {
       final userId = _supabase.auth.currentUser?.id;
 
-      final List<dynamic> response = await _supabase
+      var query = _supabase
           .from('posts')
-          .select('*, profiles:user_profiles!user_id(full_name, avatar_url), likes!left(user_id)') // Explicitly link to user_profiles
-          .order('created_at', ascending: false);
+          .select('*, profiles:user_profiles!user_id(full_name, avatar_url, role), likes!left(user_id)');
 
-      posts.assignAll(response.map((json) {
-        // Determine if the current user has liked the post
+      if (selectedTags.isNotEmpty) {
+        query = query.contains('tags', selectedTags);
+      }
+
+      // Apply sorting
+      if (currentSort.value == 'newest') {
+        query = query.order('is_pinned', ascending: false).order('created_at', ascending: false);
+      } else if (currentSort.value == 'popular') {
+        query = query.order('is_pinned', ascending: false).order('likes_count', ascending: false);
+      } else if (currentSort.value == 'solved') {
+        query = query.eq('is_solved', true).order('created_at', ascending: false);
+      } else if (currentSort.value == 'unsolved') {
+        query = query.eq('is_solved', false).order('created_at', ascending: false);
+      }
+
+      final List<dynamic> response = await query;
+
+      final List<Post> fetchedPosts = response.map((json) {
         final List<dynamic>? likesData = json['likes'];
-        final bool isLiked = likesData != null && likesData.any((like) => like['user_id'] == userId);
+        final bool isLiked = userId != null && 
+            likesData != null && 
+            likesData.any((like) => like['user_id'] == userId);
         return Post.fromJson(json).copyWith(isLiked: isLiked);
-      }).toList());
+      }).toList();
+
+      posts.assignAll(fetchedPosts);
+      _savePostsToCache(fetchedPosts);
 
     } catch (e) {
       Get.snackbar("خطأ", "فشل جلب المنشورات: $e",
           backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
-      print("Error fetching posts: $e");
     } finally {
       isLoadingPosts.value = false;
     }
   }
 
-  /// Creates a new community post, optionally with an image.
-  Future<void> createPost(String content, {File? image}) async {
-    if (content.trim().isEmpty && image == null) {
-      Get.snackbar("خطأ", "لا يمكن نشر منشور فارغ.",
-          backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
-      return;
+  Future<void> toggleSolved(String postId, bool currentStatus) async {
+    try {
+      await _supabase.from('posts').update({'is_solved': !currentStatus}).eq('id', postId);
+      fetchPosts();
+    } catch (e) {
+      print("Error toggling solved: $e");
+    }
+  }
+
+  Future<void> pinPost(String postId, bool currentStatus) async {
+    if (!_authController.isTeacher) return;
+    try {
+      await _supabase.from('posts').update({'is_pinned': !currentStatus}).eq('id', postId);
+      fetchPosts();
+    } catch (e) {
+      print("Error pinning post: $e");
+    }
+  }
+
+  Future<void> reportContent(String type, String id, String reason) async {
+    try {
+      await _supabase.from('reports').insert({
+        'user_id': _supabase.auth.currentUser?.id,
+        'content_type': type,
+        'content_id': id,
+        'reason': reason,
+      });
+      Get.snackbar("شكراً لك", "تم إرسال البلاغ وسيقوم المشرفون بمراجعته.");
+    } catch (e) {
+      print("Error reporting content: $e");
+    }
+  }
+
+  Future<void> createPost(String content, {File? image, File? audio, File? pdf, List<String>? tags}) async {
+    if (content.trim().isEmpty && image == null && audio == null && pdf == null) return;
+    
+    // Profanity Filter (Client-side pre-filter)
+    final profanityList = ['سيء1', 'سيء2']; // Extended list in production
+    for (var word in profanityList) {
+      if (content.contains(word)) {
+        Get.snackbar("تنبيه", "محتوى غير لائق.");
+        return;
+      }
     }
 
     isLoadingPosts.value = true;
     try {
       final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) throw "يجب تسجيل الدخول أولاً.";
-
       String? imageUrl;
-      if (image != null) {
-        final String fileExtension = image.path.split('.').last;
-        final String fileName = '${_uuid.v4()}.$fileExtension';
-        final String filePath = 'post_images/$fileName';
+      String? audioUrl;
+      String? pdfUrl;
 
-        // Upload image to Supabase Storage
-        await _supabase.storage.from('post_images').upload(
-              filePath,
-              image,
-              fileOptions: const FileOptions(upsert: false),
-            );
-        imageUrl = _supabase.storage.from('post_images').getPublicUrl(filePath);
+      if (image != null) {
+        final fileName = "${_uuid.v4()}.jpg";
+        await _supabase.storage.from('posts').upload("images/$fileName", image);
+        imageUrl = _supabase.storage.from('posts').getPublicUrl("images/$fileName");
       }
 
-      // Insert new post into the 'posts' table
-      await _supabase.from('posts').insert({
+      if (audio != null) {
+        final fileName = "${_uuid.v4()}.mp3";
+        await _supabase.storage.from('posts').upload("audio/$fileName", audio);
+        audioUrl = _supabase.storage.from('posts').getPublicUrl("audio/$fileName");
+      }
+
+      if (pdf != null) {
+        final fileName = "${_uuid.v4()}.pdf";
+        await _supabase.storage.from('posts').upload("docs/$fileName", pdf);
+        pdfUrl = _supabase.storage.from('posts').getPublicUrl("docs/$fileName");
+      }
+
+      final postData = {
         'user_id': userId,
         'content': content,
         'image_url': imageUrl,
-        'likes_count': 0,
-        'comments_count': 0,
-      });
+        'audio_url': audioUrl,
+        'pdf_url': pdfUrl,
+        'is_anonymous': isAnonymous.value,
+        'tags': tags ?? [],
+      };
 
-      Get.snackbar("نجاح", "تم نشر منشورك بنجاح.",
-          backgroundColor: Get.theme.colorScheme.secondary, colorText: Get.theme.colorScheme.onSecondary);
-      fetchPosts(); // Refresh posts list
+      try {
+        await _supabase.from('posts').insert(postData);
+      } catch (e) {
+        // If it's a network error, queue it
+        offlinePostQueue.add(postData);
+        _saveOfflineQueue();
+        Get.snackbar("وضع الأوفلاين", "سيتم نشر منشورك عند عودة الاتصال.");
+      }
+
+      isAnonymous.value = false;
+      fetchPosts();
     } catch (e) {
-      Get.snackbar("خطأ", "فشل نشر المنشور: $e",
-          backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
       print("Error creating post: $e");
     } finally {
       isLoadingPosts.value = false;
+    }
+  }
+
+  Future<void> _checkAndAddWelcomeComment(String? userId) async {
+    if (userId == null) return;
+    try {
+      final postsCount = await _supabase.from('posts').select('id', const FetchOptions(count: CountOption.exact)).eq('user_id', userId);
+      if (postsCount.count == 1) {
+        final firstPost = postsCount.data.first;
+        await addComment(firstPost['id'], "أهلاً بك في مجتمع كورسيريا! نحن سعداء بمشاركتك الأولى. 🌟");
+      }
+    } catch (e) {
+      print("Error in auto-welcome: $e");
     }
   }
 
@@ -186,7 +343,7 @@ class CommunityController extends GetxController {
     }
   }
 
-  /// Fetches comments for a specific post.
+  /// Fetches comments for a specific post and builds a threaded tree.
   Future<void> fetchCommentsForPost(String postId) async {
     isCommentsLoading.value = true;
     try {
@@ -195,7 +352,9 @@ class CommunityController extends GetxController {
           .select('*, profiles:user_profiles!user_id(full_name, avatar_url)')
           .eq('post_id', postId)
           .order('created_at', ascending: true);
-      commentsForPost.assignAll(response.map((json) => Comment.fromJson(json)).toList());
+
+      final List<Comment> allComments = response.map((json) => Comment.fromJson(json)).toList();
+      commentsForPost.assignAll(_buildCommentThreads(allComments));
     } catch (e) {
       Get.snackbar("خطأ", "فشل جلب التعليقات: $e",
           backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
@@ -205,9 +364,54 @@ class CommunityController extends GetxController {
     }
   }
 
-  /// Adds a new comment to a specific post.
-  Future<void> addComment(String postId, String content) async {
-    if (content.trim().isEmpty) {
+  List<Comment> _buildCommentThreads(List<Comment> allComments) {
+    final Map<String, Comment> commentMap = {for (var c in allComments) c.id: c};
+    final List<Comment> rootComments = [];
+
+    for (var comment in allComments) {
+      if (comment.parentCommentId == null) {
+        rootComments.add(comment);
+      } else {
+        final parent = commentMap[comment.parentCommentId];
+        if (parent != null) {
+          // Note: Since our model uses a final list, we need to handle this carefully.
+          // In a real app, we'd use a non-final list or copyWith.
+          (parent.replies as List<Comment>).add(comment);
+        }
+      }
+    }
+    return rootComments;
+  }
+
+  /// Adds or updates a reaction to a specific post or comment.
+  Future<void> addReaction(String id, String reactionType, {bool isComment = false}) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      final table = isComment ? 'comment_reactions' : 'post_reactions';
+      final column = isComment ? 'comment_id' : 'post_id';
+
+      // Use a single upsert for reaction
+      await _supabase.from(table).upsert({
+        'user_id': userId,
+        column: id,
+        'reaction_type': reactionType,
+      }, onConflict: 'user_id,$column');
+
+      if (isComment) {
+        fetchCommentsForPost(commentsForPost.firstWhere((c) => c.id == id || c.replies.any((r) => r.id == id)).postId);
+      } else {
+        fetchPosts();
+      }
+    } catch (e) {
+      print("Error adding reaction: $e");
+    }
+  }
+
+  /// Adds a new comment to a specific post, optionally as a reply.
+  Future<void> addComment(String postId, String content, {String? parentId, File? image, File? audio}) async {
+    if (content.trim().isEmpty && image == null && audio == null) {
       Get.snackbar("خطأ", "لا يمكن نشر تعليق فارغ.",
           backgroundColor: Get.theme.colorScheme.error, colorText: Get.theme.colorScheme.onError);
       return;
@@ -216,10 +420,28 @@ class CommunityController extends GetxController {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) throw "يجب تسجيل الدخول للتعليق.";
 
+      String? imageUrl;
+      String? audioUrl;
+
+      if (image != null) {
+        final fileName = "${_uuid.v4()}.jpg";
+        await _supabase.storage.from('comments').upload("images/$fileName", image);
+        imageUrl = _supabase.storage.from('comments').getPublicUrl("images/$fileName");
+      }
+
+      if (audio != null) {
+        final fileName = "${_uuid.v4()}.mp3";
+        await _supabase.storage.from('comments').upload("audio/$fileName", audio);
+        audioUrl = _supabase.storage.from('comments').getPublicUrl("audio/$fileName");
+      }
+
       await _supabase.from('comments').insert({
         'user_id': userId,
         'post_id': postId,
         'content': content,
+        'parent_comment_id': parentId,
+        'image_url': imageUrl,
+        'audio_url': audioUrl,
       });
 
       // Increment comments count on the post

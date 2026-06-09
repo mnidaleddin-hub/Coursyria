@@ -164,16 +164,104 @@ class AIController extends GetxController {
     }
   }
 
-  Future<void> createStudyPlan(Map<String, dynamic> goals) async {
-    isGeneratingStudyPlan.value = true;
+  var isGeneratingSummary = false.obs;
+  var isGeneratingExam = false.obs;
+  var isTranslating = false.obs;
+
+  var isGeneratingFlashcards = false.obs;
+  var isConvertingToTable = false.obs;
+  var flashcards = <Map<String, String>>[].obs;
+
+  Future<void> generateLessonFlashcards(String lessonId, String content) async {
+    isGeneratingFlashcards.value = true;
     try {
-      final result = await _aiService.generateStudyPlan(goals);
-      studyPlanResult.value = result;
-      _showResultDialog("خطتك الدراسية الذكية", result);
+      final result = await _aiService.generateFlashcards(lessonId, content);
+      flashcards.assignAll(result);
+      _showFlashcardsDialog();
     } catch (e) {
-      _showErrorSnackbar("فشل توليد الخطة: $e");
+      _showErrorSnackbar("فشل توليد البطاقات: $e");
     } finally {
-      isGeneratingStudyPlan.value = false;
+      isGeneratingFlashcards.value = false;
+    }
+  }
+
+  Future<void> simplifyForKids(String concept) async {
+    isGeneratingSummary.value = true;
+    try {
+      final result = await _aiService.explainLikeI5(concept);
+      _showResultDialog("اشرح لي كأني طفل (5 سنوات)", result);
+    } catch (e) {
+      _showErrorSnackbar("فشل التبسيط: $e");
+    } finally {
+      isGeneratingSummary.value = false;
+    }
+  }
+
+  Future<void> convertToTable(String notes) async {
+    isConvertingToTable.value = true;
+    try {
+      final result = await _aiService.convertNotesToTable(notes);
+      _showResultDialog("تحويل الملاحظات لجدول", result);
+    } catch (e) {
+      _showErrorSnackbar("فشل التحويل: $e");
+    } finally {
+      isConvertingToTable.value = false;
+    }
+  }
+
+  void _showFlashcardsDialog() {
+    Get.dialog(
+      AlertDialog(
+        title: const Text("بطاقات الاستذكار الذكية (Flashcards)"),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: flashcards.length,
+            itemBuilder: (context, index) {
+              final card = flashcards[index];
+              return Card(
+                child: ExpansionTile(
+                  title: Text(card['front'] ?? ""),
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.all(16.r),
+                      child: Text(card['back'] ?? "", style: const TextStyle(color: AppColors.accentTeal, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text("حسناً")),
+        ],
+      ),
+    );
+  }
+
+  Future<void> generatePracticeExam(String courseId, String title) async {
+    isGeneratingExam.value = true;
+    try {
+      final exam = await _aiService.generateExam(courseId, title);
+      _showResultDialog("امتحان تجريبي شامل", exam);
+    } catch (e) {
+      _showErrorSnackbar("فشل توليد الامتحان: $e");
+    } finally {
+      isGeneratingExam.value = false;
+    }
+  }
+
+  Future<void> translateLesson(String text, String targetLang) async {
+    isTranslating.value = true;
+    try {
+      final translated = await _aiService.translate(text, targetLang);
+      _showResultDialog("الترجمة ($targetLang)", translated);
+    } catch (e) {
+      _showErrorSnackbar("فشل الترجمة: $e");
+    } finally {
+      isTranslating.value = false;
     }
   }
 

@@ -302,65 +302,75 @@ ${context != null ? "سياق إضافي للمحتوى: $context" : ""}
     return "عذراً يا بطل، فشل في توليد الملخص حالياً. حاول لاحقاً.";
   }
 
-  Future<List<QuizQuestion>> generateQuizViaGateway({
-    required String lessonId,
-    required String topic,
-    String? context,
-  }) async {
-    final String prompt = """
-ولد لي اختباراً ذكياً من 5 أسئلة للموضوع التالي: $topic.
-${context != null ? "سياق إضافي: $context" : ""}
-يجب أن يكون الرد بصيغة JSON Array فقط، كل كائن يحتوي على:
-- "question": نص السؤال.
-- "options": مصفوفة من 4 خيارات.
-- "correct_index": رقم الإجابة الصحيحة (0-3).
-- "explanation": شرح للحل.
-""";
-
-    final response = await callAIGateway(
-      feature: 'quiz',
-      lessonId: lessonId,
-      userPrompt: prompt,
+  // primary methods
+  Future<AIResponse> chat(String message, {String? sessionId, List<Map<String, String>>? history}) async {
+    return await callAIGateway(
+      feature: 'chat',
+      lessonId: 'global',
+      userPrompt: message,
+      extraParams: {
+        'sessionId': sessionId,
+        'chatHistory': history,
+      },
     );
-
-    if (response.success) {
-      try {
-        String rawContent = _cleanJsonResponse(response.content);
-        final List<dynamic> jsonList = jsonDecode(rawContent);
-        return jsonList.map((json) => QuizQuestion(
-          id: "ai_q_${DateTime.now().millisecondsSinceEpoch}_${jsonList.indexOf(json)}",
-          quizId: "ai_temp",
-          questionText: json['question'],
-          questionType: 'multiple_choice',
-          options: List<String>.from(json['options']),
-          correctAnswer: json['options'][json['correct_index']],
-          points: 10,
-          orderIndex: jsonList.indexOf(json),
-          explanation: json['explanation'],
-        )).toList();
-      } catch (e) {
-        _logger.e("Gateway Quiz Parsing Error: $e");
-        throw "فشل في معالجة أسئلة الاختبار من الـ Gateway.";
-      }
-    } else {
-      throw response.error ?? "خطأ في توليد الاختبار.";
-    }
   }
 
-  Future<String> summarizeLessonViaGateway({
-    required String lessonId,
-    required String title,
-    required String description,
-  }) async {
-    final String prompt = "لخص لي هذا الدرس بشكل نقاط أساسية واحترافية باللغة العربية: العنوان: $title، الوصف: $description. اجعل الملخص مفيداً جداً للطالب السوري ومنسقاً بـ Markdown.";
-    
+  Future<List<QuizQuestion>> generateQuizFromContent(String content, {int count = 5}) async {
+    final response = await callAIGateway(
+      feature: 'quiz',
+      lessonId: 'global',
+      userPrompt: "ولد لي اختباراً من $count أسئلة بناءً على المحتوى التالي: $content",
+    );
+    if (response.success) {
+      final List<dynamic> jsonList = jsonDecode(_cleanJsonResponse(response.content));
+      return jsonList.map((json) => QuizQuestion.fromJson(json)).toList();
+    }
+    throw (response.error ?? "فشل توليد الاختبار");
+  }
+
+  Future<String> summarizeContent(String content) async {
     final response = await callAIGateway(
       feature: 'summary',
-      lessonId: lessonId,
-      userPrompt: prompt,
+      lessonId: 'global',
+      userPrompt: "لخص لي هذا المحتوى التعليمي في 5 نقاط أساسية: $content",
     );
+    return response.success ? response.content : throw (response.error ?? "فشل التلخيص");
+  }
 
-    return response.success ? response.content : (response.error ?? "فشل في توليد الملخص.");
+  Future<String> generateExam(String courseId, String courseTitle) async {
+    final response = await callAIGateway(
+      feature: 'exam',
+      lessonId: courseId,
+      userPrompt: "ولد لي امتحاناً تجريبياً شاملاً لكورس: $courseTitle",
+    );
+    return response.success ? response.content : throw (response.error ?? "فشل توليد الامتحان");
+  }
+
+  Future<String> createSupportTicket(String issue, Map<String, dynamic> context) async {
+    final response = await callAIGateway(
+      feature: 'support',
+      lessonId: 'global',
+      userPrompt: "مشكلة فنية: $issue\nسياق المستخدم: ${jsonEncode(context)}",
+    );
+    return response.success ? response.content : throw (response.error ?? "فشل فتح تذكرة دعم");
+  }
+
+  Future<String> translate(String text, String targetLanguage) async {
+    final response = await callAIGateway(
+      feature: 'translation',
+      lessonId: 'global',
+      userPrompt: "ترجم النص التالي إلى $targetLanguage: $text",
+    );
+    return response.success ? response.content : throw (response.error ?? "فشل الترجمة");
+  }
+
+  Future<String> getSmartStudyGuide(String courseId, List<String> lessonTitles) async {
+    final response = await callAIGateway(
+      feature: 'study_plan',
+      lessonId: courseId,
+      userPrompt: "بناءً على عناوين الدروس التالية: $lessonTitles، ولد لي دليلاً دراسياً ذكياً.",
+    );
+    return response.success ? response.content : throw (response.error ?? "فشل توليد الدليل");
   }
 
   Future<List<AIRecommendation>> fetchRecommendations({
@@ -666,7 +676,7 @@ ${context != null ? "سياق إضافي: $context" : ""}
 
   String _cleanJsonResponse(String raw) {
     String cleaned = raw.trim();
-    if (cleaned.startsWith("```json")) {
+    if (cleaned.toLowerCase().startsWith("```json")) {
       cleaned = cleaned.substring(7);
     } else if (cleaned.startsWith("```")) {
       cleaned = cleaned.substring(3);

@@ -149,16 +149,19 @@ class WalletController extends GetxController {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
 
-      // 1. In a real app, upload the receipt image to Supabase Storage
-      // For now, we simulate the request record
-      await _supabase.from('wallet_transactions').insert({
-        'wallet_id': (await _supabase.from('wallets').select('id').eq('user_id', userId).single())['id'],
-        'amount': amount,
-        'type': 'deposit',
-        'status': 'pending',
-        'reference_id': transactionId,
-        'note': "شحن عبر $method: $note",
-      });
+      // 1. Upload receipt to Supabase Storage
+      final String? publicUrl = await _walletService.uploadReceipt(File(selectedImagePath.value), userId);
+      if (publicUrl == null) throw "فشل رفع الصورة";
+
+      // 2. Submit to backend
+      await _walletService.submitRechargeRequest(
+        userId: userId,
+        amount: amount,
+        paymentMethod: method,
+        transactionId: transactionId,
+        note: note ?? "",
+        receiptUrl: publicUrl,
+      );
 
       Get.snackbar("نجاح", "تم إرسال طلب الشحن بنجاح وهو قيد المراجعة",
           snackPosition: SnackPosition.BOTTOM);
@@ -171,6 +174,33 @@ class WalletController extends GetxController {
           snackPosition: SnackPosition.BOTTOM);
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> usePromoCode(String code) async {
+    try {
+      isLoading.value = true;
+      final response = await _authController.dio.post('/wallet/use-promo-code', data: {"code": code});
+      
+      if (response.statusCode == 200) {
+        balance.value = response.data['new_balance'].toString();
+        Get.snackbar("نجاح", response.data['message'], snackPosition: SnackPosition.BOTTOM);
+        fetchWalletData();
+      }
+    } catch (e) {
+      Get.snackbar("خطأ", "كود غير صالح أو مستخدم مسبقاً", snackPosition: SnackPosition.BOTTOM);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  var referralCode = "".obs;
+  Future<void> fetchReferralCode() async {
+    try {
+      final response = await _authController.dio.get('/wallet/referral-code');
+      referralCode.value = response.data['referral_code'];
+    } catch (e) {
+      if (kDebugMode) debugPrint("Referral error: $e");
     }
   }
 }

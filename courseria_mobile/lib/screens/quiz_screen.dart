@@ -44,32 +44,15 @@ class _QuizScreenState extends State<QuizScreen> {
       appBar: AppBar(
         title: Text(widget.quiz.title),
         actions: [
-          Obx(() {
-            if (widget.quiz.timeLimit != null) {
-              final seconds = _quizController.timerSeconds.value;
-              final minutes = seconds ~/ 60;
-              final remainingSeconds = seconds % 60;
-              return Center(
+          Obx(() => Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16.w),
-                  child: Row(
-                    children: [
-                      Icon(Icons.timer_outlined, size: 18.sp, color: seconds < 30 ? Colors.redAccent : Colors.white),
-                      SizedBox(width: 4.w),
-                      Text(
-                        "${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}",
-                        style: TextStyle(
-                          color: seconds < 30 ? Colors.redAccent : Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    _formatTime(_quizController.timerSeconds.value),
+                    style: TextStyle(color: AppColors.accentTeal, fontWeight: FontWeight.bold, fontSize: 16.sp, fontFamily: 'monospace'),
                   ),
                 ),
-              );
-            }
-            return const SizedBox.shrink();
-          }),
+              )),
         ],
       ),
       body: Obx(() {
@@ -120,10 +103,22 @@ class _QuizScreenState extends State<QuizScreen> {
                             ),
                           ).animate().fadeIn().slideX(begin: 0.1, end: 0),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.lightbulb_outline_rounded, color: Colors.amber),
-                          onPressed: () => _showAIHint(question.questionText, question.options),
-                          tooltip: "تلميحة ذكية (AI)",
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                _quizController.isStarred(question.id) ? Icons.star_rounded : Icons.star_outline_rounded,
+                                color: _quizController.isStarred(question.id) ? Colors.amber : Colors.white24,
+                              ),
+                              onPressed: () => _quizController.toggleStar(question.id),
+                              tooltip: "تمييز السؤال",
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.lightbulb_outline_rounded, color: Colors.amber),
+                              onPressed: () => _showAIHint(question.questionText, question.options),
+                              tooltip: "تلميحة ذكية (AI)",
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -345,5 +340,11 @@ class _QuizScreenState extends State<QuizScreen> {
       Get.back();
       Get.snackbar("خطأ", "فشل الحصول على التلميحة");
     });
+  }
+
+  String _formatTime(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return "${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}";
   }
 }

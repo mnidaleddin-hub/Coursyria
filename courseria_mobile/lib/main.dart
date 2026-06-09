@@ -77,10 +77,60 @@ import 'models/quiz_result_model.dart';
 import 'core/theme/theme_controller.dart';
 import 'widgets/offline_banner.dart';
 
+import 'screens/course_chat_screen.dart';
+import 'screens/group_media_gallery_screen.dart';
+import 'controllers/community_controller.dart';
+import 'controllers/group_controller.dart';
+
 import 'screens/supabase_test_screen.dart';
+
+import 'package:safe_device/safe_device.dart';
+import 'core/utils/security_utils.dart';
+import 'controllers/exam_simulator_controller.dart';
+import 'controllers/backup_controller.dart';
+import 'controllers/localization_controller.dart';
+import 'screens/exam_simulator_screen.dart';
+import 'screens/exam_result_screen.dart';
+import 'screens/error_review_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. Security Check (Emulator & Root Detection)
+  if (!kIsWeb) {
+    bool isSecure = await SecurityUtils.isDeviceSecure();
+    if (!isSecure) {
+      runApp(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.security_rounded, size: 80, color: Colors.red),
+                  const SizedBox(height: 24),
+                  const Text(
+                    "عذراً، لا يمكن تشغيل التطبيق على الأجهزة المروتة أو المحاكيات لأسباب أمنية.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => SystemNavigator.pop(),
+                    child: const Text("إغلاق التطبيق"),
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+      ));
+      return;
+    }
+    // Prevent Screenshots
+    await SecurityUtils.preventScreenshots();
+  }
   
   // Initialize Firebase
   if (!kIsWeb) {
@@ -126,19 +176,10 @@ class CourseriaApp extends StatefulWidget {
 }
 
 class _CourseriaAppState extends State<CourseriaApp> {
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
-  final Rx<ConnectivityResult> _connectivityStatus = ConnectivityResult.wifi.obs;
-
   @override
   void initState() {
     super.initState();
     _initializeApp();
-  }
-
-  @override
-  void dispose() {
-    _connectivitySubscription?.cancel();
-    super.dispose();
   }
 
   void _initializeApp() {
@@ -166,15 +207,14 @@ class _CourseriaAppState extends State<CourseriaApp> {
     // Register Controllers
     _registerMandatoryControllers();
     _registerLazyControllers();
-
-    // Connectivity
-    _initConnectivity();
   }
 
   void _registerMandatoryControllers() {
     if (!Get.isRegistered<SystemController>()) Get.put(SystemController(), permanent: true);
     if (!Get.isRegistered<ThemeController>()) Get.put(ThemeController(), permanent: true);
     if (!Get.isRegistered<AuthController>()) Get.put(AuthController(), permanent: true);
+    if (!Get.isRegistered<LocalizationController>()) Get.put(LocalizationController(), permanent: true);
+    if (!Get.isRegistered<GamificationController>()) Get.put(GamificationController(), permanent: true);
     
     // Register Core Services
     Get.put(NotificationService(), permanent: true);
@@ -190,26 +230,10 @@ class _CourseriaAppState extends State<CourseriaApp> {
     Get.lazyPut(() => LessonController(), fenix: true);
     Get.lazyPut(() => DashboardController(), fenix: true);
     Get.lazyPut(() => AIController(), fenix: true);
-    Get.lazyPut(() => GamificationController(), fenix: true);
-  }
-
-  Future<void> _initConnectivity() async {
-    final Connectivity connectivity = Connectivity();
-    try {
-      final List<ConnectivityResult> result = await connectivity.checkConnectivity();
-      if (result.isNotEmpty) {
-        _connectivityStatus.value = result.first;
-      }
-    } catch (e) {
-      debugPrint('❌ Connectivity Check Error: $e');
-    }
-
-    _connectivitySubscription?.cancel();
-    _connectivitySubscription = connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
-      if (results.isNotEmpty) {
-        _connectivityStatus.value = results.first;
-      }
-    });
+    Get.lazyPut(() => CommunityController(), fenix: true);
+    Get.lazyPut(() => GroupController(), fenix: true);
+    Get.lazyPut(() => ExamSimulatorController(), fenix: true);
+    Get.lazyPut(() => BackupController(), fenix: true);
   }
 
   @override
@@ -224,51 +248,22 @@ class _CourseriaAppState extends State<CourseriaApp> {
       splitScreenMode: true,
       builder: (context, child) {
         final themeController = Get.find<ThemeController>();
-        final systemController = Get.find<SystemController>();
-
         return Obx(() => GetMaterialApp(
           debugShowCheckedModeBanner: false,
           title: AppConstants.appName,
           locale: const Locale('ar', 'SY'),
           fallbackLocale: const Locale('ar', 'SY'),
-          theme: AppTheme.lightTheme(themeController.currentPrimaryColor),
-          darkTheme: AppTheme.darkTheme(themeController.currentPrimaryColor),
+          theme: themeController.currentTheme,
+          darkTheme: themeController.currentTheme, // Using dynamic theme
           themeMode: themeController.themeMode.value,
-          defaultTransition: Transition.cupertino,
-          transitionDuration: const Duration(milliseconds: 400),
-          builder: (context, child) {
-            return Obx(() {
-              if (_connectivityStatus.value == ConnectivityResult.none) {
-                return NoInternetScreen(onRetry: () => _initConnectivity());
-              }
-              return Stack(
-                children: [
-                  Column(
-                    children: [
-                      Obx(() => systemController.isGlobalLoading.value
-                          ? LinearProgressIndicator(
-                              value: systemController.loadingProgress.value > 0
-                                  ? systemController.loadingProgress.value
-                                  : null,
-                              backgroundColor: Colors.transparent,
-                              valueColor: AlwaysStoppedAnimation<Color>(themeController.currentPrimaryColor),
-                              minHeight: 3.h,
-                            )
-                          : SizedBox(height: 3.h)),
-                      const OfflineBanner(),
-                      Expanded(child: child!),
-                    ],
-                  ),
-                  Obx(() => systemController.isBlueLightFilterEnabled.value
-                      ? IgnorePointer(
-                          child: Container(
-                            color: Colors.orange.withOpacity(0.15),
-                          ),
-                        )
-                      : const SizedBox.shrink()),
-                ],
-              );
-            });
+          builder: (context, navigator) {
+            // Apply Global Text Scaling (Feature 186)
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(themeController.fontSizeFactor.value),
+              ),
+              child: AppBuilder(child: navigator!),
+            );
           },
           initialRoute: '/splash',
           getPages: [
@@ -276,7 +271,20 @@ class _CourseriaAppState extends State<CourseriaApp> {
             GetPage(name: '/onboarding', page: () => const OnboardingScreen()),
             GetPage(name: '/login', page: () => const LoginScreen()),
             GetPage(name: '/home', page: () => const MainWrapper()),
-            GetPage(name: '/dashboard', page: () => const StudentDashboardScreen()),
+            GetPage(name: '/dashboard', page: () => Scaffold(
+              backgroundColor: AppColors.darkBg,
+              appBar: AppBar(
+                title: Text("لوحة التحكم", style: AppTextStyles.header.copyWith(fontSize: 18.sp, color: Colors.white)),
+                backgroundColor: AppColors.primaryNavy,
+                elevation: 0,
+                centerTitle: true,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                  onPressed: () => Get.back(),
+                ),
+              ),
+              body: const StudentDashboardScreen(),
+            )),
             GetPage(name: '/notifications', page: () => const NotificationScreen()),
             GetPage(name: '/supabase_test', page: () => const SupabaseTestScreen()),
             GetPage(name: '/teacher_panel', page: () => const TeacherPanelScreen()),
@@ -300,6 +308,14 @@ class _CourseriaAppState extends State<CourseriaApp> {
             GetPage(name: '/audio-summaries', page: () => const AudioSummariesScreen()),
             GetPage(name: '/ai-chat', page: () => const AIChatScreen()),
             GetPage(name: '/community', page: () => const CommunityScreen()),
+            GetPage(name: '/chat', page: () => CourseChatScreen(
+              groupId: Get.arguments['groupId'],
+              groupName: Get.arguments['groupName'],
+            )),
+            GetPage(name: '/group-gallery', page: () => GroupMediaGalleryScreen(
+              groupId: Get.arguments['groupId'],
+              groupName: Get.arguments['groupName'],
+            )),
             GetPage(name: '/group-sessions', page: () => const GroupSessionsScreen()),
             GetPage(name: '/mystery-box', page: () => const MysteryBoxScreen()),
             GetPage(name: '/sticker-shop', page: () => const StickerShopScreen()),
@@ -340,8 +356,27 @@ class _CourseriaAppState extends State<CourseriaApp> {
               name: '/quiz-result',
               page: () => QuizResultScreen(result: Get.arguments as QuizResult),
             ),
+            GetPage(name: '/exam-simulator', page: () => const ExamSimulatorScreen()),
+            GetPage(name: '/exam-results', page: () => const ExamResultScreen()),
+            GetPage(name: '/exam-error-review', page: () => const ErrorReviewScreen()),
+            GetPage(name: '/exam-failed', page: () => Scaffold(
+              backgroundColor: AppColors.primaryNavy,
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 80),
+                    SizedBox(height: 20.h),
+                    Text(Get.arguments ?? "فشل الامتحان", style: const TextStyle(color: Colors.white, fontSize: 18)),
+                    SizedBox(height: 20.h),
+                    ElevatedButton(onPressed: () => Get.offAllNamed('/home'), child: const Text("العودة للرئيسية"))
+                  ],
+                ),
+              ),
+            )),
           ],
-        ));
+        );
+      });
       },
     );
   }
@@ -352,5 +387,52 @@ class _CourseriaAppState extends State<CourseriaApp> {
     } catch (e) {
       debugPrint("Could not enable secure mode: $e");
     }
+  }
+}
+
+class AppBuilder extends StatelessWidget {
+  final Widget child;
+  const AppBuilder({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final systemController = Get.find<SystemController>();
+    final themeController = Get.find<ThemeController>();
+
+    return Obx(() {
+      if (systemController.connectivityStatus.value == ConnectivityResult.none) {
+        return NoInternetScreen(onRetry: () => systemController.initConnectivity());
+      }
+
+      return Stack(
+        children: [
+          Column(
+            children: [
+              Obx(() => systemController.isGlobalLoading.value
+                  ? LinearProgressIndicator(
+                      value: systemController.loadingProgress.value > 0
+                          ? systemController.loadingProgress.value
+                          : null,
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(themeController.currentPrimaryColor),
+                      minHeight: 3.h,
+                    )
+                  : SizedBox(height: 3.h)),
+              const OfflineBanner(),
+              Expanded(child: child),
+            ],
+          ),
+          Obx(() => systemController.isBlueLightFilterEnabled.value || themeController.isEmergencyNightMode.value
+              ? IgnorePointer(
+                  child: Container(
+                    color: themeController.isEmergencyNightMode.value 
+                      ? Colors.deepOrange.withOpacity(0.4) // Feature 185: Intense orange filter
+                      : Colors.orange.withOpacity(0.15),
+                  ),
+                )
+              : const SizedBox.shrink()),
+        ],
+      );
+    });
   }
 }

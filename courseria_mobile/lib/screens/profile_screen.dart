@@ -226,6 +226,8 @@ class ProfileScreen extends StatelessWidget {
           Icons.military_tech_rounded,
         ),
         SizedBox(height: 16.h),
+        _buildPerformanceGraph(),
+        SizedBox(height: 16.h),
         _buildStickersRow(),
         SizedBox(height: 16.h),
         _buildAchievementsRow(),
@@ -486,6 +488,55 @@ class ProfileScreen extends StatelessWidget {
     } else {
       Get.snackbar("خطأ", "تعذر فتح واتساب.");
     }
+  }
+
+  Widget _buildPerformanceGraph() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20.r),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(20.r),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("مخطط الأداء الدراسي", style: AppTextStyles.header.copyWith(fontSize: 16.sp, color: AppColors.primaryNavy)),
+          SizedBox(height: 16.h),
+          AspectRatio(
+            aspectRatio: 1.7,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _buildBar(0.4, "أسبوع 1"),
+                _buildBar(0.7, "أسبوع 2"),
+                _buildBar(0.5, "أسبوع 3"),
+                _buildBar(0.9, "أسبوع 4"),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBar(double heightFactor, String label) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Container(
+          width: 30.w,
+          height: 100.h * heightFactor,
+          decoration: BoxDecoration(
+            color: AppColors.accentTeal,
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+        ).animate().scaleY(begin: 0, duration: const Duration(seconds: 1)),
+        SizedBox(height: 8.h),
+        Text(label, style: TextStyle(fontSize: 10.sp, color: AppColors.textMuted)),
+      ],
+    );
   }
 
   void _showPickImageBottomSheet() {

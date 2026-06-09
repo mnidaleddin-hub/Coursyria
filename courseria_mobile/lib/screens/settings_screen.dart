@@ -18,86 +18,80 @@ class SettingsScreen extends StatelessWidget {
     final authController = Get.find<AuthController>();
     final systemController = Get.find<SystemController>();
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text("الإعدادات"),
-      ),
-      body: ListView(
-        padding: EdgeInsets.all(16.r),
-        children: [
-          _buildSectionTitle("المظهر والسمات"),
-          
-          if (authController.userData['role'] == 'teacher')
-            _buildSettingTile(
-              icon: Icons.dashboard_customize_rounded,
-              title: "لوحة تحكم المعلم",
-              subtitle: "إدارة الكورسات، الطلاب، والأرباح",
-              onTap: () => Get.toNamed('/teacher-dashboard'),
-            ),
-
-          // Theme Mode (Light/Dark/System)
+    return ListView(
+      padding: EdgeInsets.all(16.r),
+      children: [
+        _buildSectionTitle("المظهر والسمات"),
+        
+        if (authController.userData['role'] == 'teacher')
           _buildSettingTile(
-            icon: Icons.palette_rounded,
-            title: "وضع التطبيق",
-            subtitle: _getThemeModeName(themeController.themeMode.value),
-            onTap: () => _showThemeModeSheet(context, themeController),
+            icon: Icons.dashboard_customize_rounded,
+            title: "لوحة تحكم المعلم",
+            subtitle: "إدارة الكورسات، الطلاب، والأرباح",
+            onTap: () => Get.toNamed('/teacher-dashboard'),
           ),
 
-          // Theme Color Presets
-          _buildSettingTile(
-            icon: Icons.color_lens_rounded,
-            title: "سمة الألوان",
-            subtitle: themeController.selectedThemeName.value == 'Custom' ? "لون مخصص" : themeController.selectedThemeName.value,
-            trailing: _buildCurrentColorPreview(themeController),
-            onTap: () => _showThemeColorSheet(context, themeController),
-          ),
+        // Theme Mode (Light/Dark/System)
+        _buildSettingTile(
+          icon: Icons.palette_rounded,
+          title: "وضع التطبيق",
+          subtitle: _getThemeModeName(themeController.themeMode.value),
+          onTap: () => _showThemeModeSheet(context, themeController),
+        ),
 
-          _buildSettingTile(
-            icon: Icons.visibility_rounded,
-            title: "حماية العين (الفلتر الأزرق)",
-            trailing: Obx(() => Switch(
-              value: systemController.isBlueLightFilterEnabled.value,
-              onChanged: (val) => systemController.toggleBlueLightFilter(val),
-              activeColor: themeController.currentPrimaryColor,
-            )),
-          ),
+        // Theme Color Presets
+        _buildSettingTile(
+          icon: Icons.color_lens_rounded,
+          title: "سمة الألوان والمظهر",
+          subtitle: themeController.selectedThemeName.value,
+          onTap: () => _showThemeSelectionSheet(context, themeController),
+        ),
 
-          SizedBox(height: 24.h),
-          _buildSectionTitle("الذكاء الاصطناعي (AI)"),
-          _buildAISettings(context, systemController),
-          
-          SizedBox(height: 24.h),
-          _buildSectionTitle("اللغة"),
-          _buildSettingTile(
-            icon: Icons.language_rounded,
-            title: "لغة التطبيق",
-            subtitle: "العربية (Arabic)",
-            onTap: () {
-              Get.snackbar("اللغة", "التطبيق متوفر حالياً باللغة العربية فقط.");
-            },
-          ),
+        _buildSettingTile(
+          icon: Icons.visibility_rounded,
+          title: "حماية العين (الفلتر الأزرق)",
+          trailing: Obx(() => Switch(
+            value: systemController.isBlueLightFilterEnabled.value,
+            onChanged: (val) => systemController.toggleBlueLightFilter(val),
+            activeColor: themeController.currentPrimaryColor,
+          )),
+        ),
 
-          SizedBox(height: 24.h),
-          _buildSectionTitle("الحساب والأمان"),
-          _buildSettingTile(
-            icon: Icons.notifications_active_rounded,
-            title: "الإشعارات",
-            trailing: Switch(
-              value: true,
-              onChanged: (val) {},
-              activeColor: themeController.currentPrimaryColor,
-            ),
+        SizedBox(height: 24.h),
+        _buildSectionTitle("الذكاء الاصطناعي (AI)"),
+        _buildAISettings(context, systemController),
+        
+        SizedBox(height: 24.h),
+        _buildSectionTitle("اللغة"),
+        _buildSettingTile(
+          icon: Icons.language_rounded,
+          title: "لغة التطبيق",
+          subtitle: "العربية (Arabic)",
+          onTap: () {
+            Get.snackbar("اللغة", "التطبيق متوفر حالياً باللغة العربية فقط.");
+          },
+        ),
+
+        SizedBox(height: 24.h),
+        _buildSectionTitle("الحساب والأمان"),
+        _buildSettingTile(
+          icon: Icons.notifications_active_rounded,
+          title: "الإشعارات",
+          trailing: Switch(
+            value: true,
+            onChanged: (val) {},
+            activeColor: themeController.currentPrimaryColor,
           ),
-          
-          SizedBox(height: 24.h),
-          _buildSectionTitle("عن كورسيريا"),
-          _buildSettingTile(
-            icon: Icons.help_outline_rounded,
-            title: "الأسئلة الشائعة",
-            onTap: () => Get.toNamed('/faqs'),
-          ),
-          _buildSettingTile(
+        ),
+        
+        SizedBox(height: 24.h),
+        _buildSectionTitle("عن كورسيريا"),
+        _buildSettingTile(
+          icon: Icons.help_outline_rounded,
+          title: "الأسئلة الشائعة",
+          onTap: () => Get.toNamed('/faqs'),
+        ),
+        _buildSettingTile(
             icon: Icons.info_outline_rounded,
             title: "عن التطبيق",
             onTap: () => Get.toNamed('/app-info'),
@@ -259,119 +253,54 @@ class SettingsScreen extends StatelessWidget {
     });
   }
 
-  void _showThemeColorSheet(BuildContext context, ThemeController controller) {
+  void _showThemeSelectionSheet(BuildContext context, ThemeController themeController) {
+    final themes = [
+      {'name': 'Original', 'label': 'كورسيريا الأصلي', 'desc': 'ألوان الهوية الرسمية', 'color': AppTheme.themeColors['Navy']},
+      {'name': 'Academia', 'label': 'أكاديميا هادئ', 'desc': 'مريح للعين بلمسات عشبية', 'color': AppTheme.themeColors['Sage']},
+      {'name': 'DarkPro', 'label': 'الوضع الاحترافي', 'desc': 'أسود مطلق موفر للطاقة (OLED)', 'color': AppTheme.themeColors['ElectricBlue']},
+      {'name': 'Vibrant', 'label': 'تعلم حيوي', 'desc': 'ألوان مشرقة وتدرجات عصرية', 'color': Colors.deepPurpleAccent},
+      {'name': 'Minimal', 'label': 'بساطة مطلقة', 'desc': 'أبيض ناصع وتصميم مينيمال', 'color': Colors.black},
+      {'name': 'Midnight', 'label': 'منتصف الليل', 'desc': 'بنفسجي داكن للتركيز العميق', 'color': AppTheme.themeColors['MidnightPurple']},
+    ];
+
     Get.bottomSheet(
       Container(
-        padding: EdgeInsets.all(24.r),
+        padding: EdgeInsets.all(20.r),
         decoration: BoxDecoration(
-          color: context.theme.cardColor,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
+          color: context.theme.scaffoldBackgroundColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text("سمة الألوان", style: AppTextStyles.header.copyWith(fontSize: 18.sp)),
-            SizedBox(height: 24.h),
-            Wrap(
-              spacing: 15.w,
-              runSpacing: 15.h,
-              alignment: WrapAlignment.center,
-              children: [
-                ...AppTheme.themeColors.entries.map((entry) {
-                  return _buildColorCircle(controller, entry.key, entry.value);
-                }),
-                _buildCustomColorCircle(context, controller),
-              ],
+            Container(width: 40.w, height: 4.h, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+            SizedBox(height: 20.h),
+            Text("اختر مظهرك المفضل", style: AppTextStyles.header.copyWith(fontSize: 18.sp)),
+            SizedBox(height: 20.h),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: themes.length,
+                itemBuilder: (context, index) {
+                  final t = themes[index];
+                  final isSelected = themeController.selectedThemeName.value == t['name'];
+                  return ListTile(
+                    leading: CircleAvatar(backgroundColor: t['color'] as Color),
+                    title: Text(t['label'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(t['desc'] as String),
+                    trailing: isSelected ? Icon(Icons.check_circle_rounded, color: t['color'] as Color) : null,
+                    onTap: () {
+                      themeController.changeThemeColor(t['name'] as String);
+                      Get.back();
+                    },
+                  );
+                },
+              ),
             ),
-            SizedBox(height: 30.h),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildColorCircle(ThemeController controller, String name, Color color) {
-    return Obx(() {
-      final isSelected = controller.selectedThemeName.value == name;
-      return GestureDetector(
-        onTap: () => controller.changeThemeColor(name),
-        child: Column(
-          children: [
-            Container(
-              width: 50.r,
-              height: 50.r,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: isSelected ? Border.all(color: Colors.white, width: 3) : null,
-                boxShadow: [
-                  if (isSelected) BoxShadow(color: color.withOpacity(0.4), blurRadius: 10, spreadRadius: 2),
-                ],
-              ),
-              child: isSelected ? const Icon(Icons.check, color: Colors.white) : null,
-            ),
-            SizedBox(height: 8.h),
-            Text(name, style: TextStyle(fontSize: 12.sp, color: isSelected ? color : AppColors.textGrey)),
-          ],
-        ),
-      );
-    });
-  }
-
-  Widget _buildCustomColorCircle(BuildContext context, ThemeController controller) {
-    return Obx(() {
-      final isSelected = controller.selectedThemeName.value == 'Custom';
-      final color = controller.customPrimaryColor.value;
-      return GestureDetector(
-        onTap: () => _showColorPicker(context, controller),
-        child: Column(
-          children: [
-            Container(
-              width: 50.r,
-              height: 50.r,
-              decoration: BoxDecoration(
-                gradient: const SweepGradient(colors: [Colors.red, Colors.orange, Colors.yellow, Colors.green, Colors.blue, Colors.purple, Colors.red]),
-                shape: BoxShape.circle,
-                border: isSelected ? Border.all(color: Colors.white, width: 3) : null,
-                boxShadow: [
-                  if (isSelected) BoxShadow(color: color.withOpacity(0.4), blurRadius: 10, spreadRadius: 2),
-                ],
-              ),
-              child: isSelected 
-                ? const Icon(Icons.colorize_rounded, color: Colors.white) 
-                : const Icon(Icons.add, color: Colors.white),
-            ),
-            SizedBox(height: 8.h),
-            Text("مخصص", style: TextStyle(fontSize: 12.sp, color: isSelected ? color : AppColors.textGrey)),
-          ],
-        ),
-      );
-    });
-  }
-
-  void _showColorPicker(BuildContext context, ThemeController controller) {
-    // Simple mock color picker using basic colors
-    final colors = [Colors.red, Colors.pink, Colors.purple, Colors.deepPurple, Colors.blue, Colors.lightBlue, Colors.cyan, Colors.teal, Colors.green, Colors.lightGreen, Colors.lime, Colors.yellow, Colors.amber, Colors.orange, Colors.deepOrange, Colors.brown];
-    
-    Get.dialog(
-      AlertDialog(
-        title: const Text("اختر لونك المفضل"),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: GridView.builder(
-            shrinkWrap: true,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, mainAxisSpacing: 10, crossAxisSpacing: 10),
-            itemCount: colors.length,
-            itemBuilder: (context, index) => GestureDetector(
-              onTap: () {
-                controller.setCustomColor(colors[index]);
-                Get.back();
-              },
-              child: Container(decoration: BoxDecoration(color: colors[index], shape: BoxShape.circle)),
-            ),
-          ),
-        ),
-      ),
+      isScrollControlled: true,
     );
   }
 

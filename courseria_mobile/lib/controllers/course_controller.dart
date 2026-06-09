@@ -194,6 +194,9 @@ class CourseController extends GetxController {
 
       final systemController = Get.find<SystemController>();
       
+      // Load from cache first for immediate UI (Offline-First)
+      _loadFromOfflineCache();
+
       // Fetch all approved courses from Supabase
       final response = await _supabase
           .from('courses')
@@ -202,6 +205,9 @@ class CourseController extends GetxController {
       
       final courses = (response as List).map((json) => Course.fromJson(json)).toList();
       allCourses.assignAll(courses);
+
+      // Save to cache for next offline start
+      _saveToOfflineCache(courses);
 
       // Mark purchased courses
       await fetchMyCourses();
@@ -216,6 +222,11 @@ class CourseController extends GetxController {
       hasError.value = true;
       errorMessage.value = "فشل الاتصال بقاعدة البيانات.";
       _logger.e("Critical Error fetching courses: $e");
+      
+      // If error occurs, we still have the cache from _loadFromOfflineCache()
+      if (allCourses.isEmpty) {
+        _loadFromOfflineCache();
+      }
     } finally {
       isLoading.value = false;
     }

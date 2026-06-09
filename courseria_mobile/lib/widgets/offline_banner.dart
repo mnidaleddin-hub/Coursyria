@@ -16,14 +16,16 @@ class OfflineBanner extends StatelessWidget {
           return Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 8),
-            color: AppColors.errorRed,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [AppColors.errorRed, Color(0xFFD32F2F)]),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
                 const SizedBox(width: 8),
                 Text(
-                  "أنت غير متصل بالإنترنت",
+                  "وضع الأوفلاين مفعل - يمكنك مشاهدة دروسك المحملة",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 12.sp,
@@ -32,7 +34,7 @@ class OfflineBanner extends StatelessWidget {
                 ),
               ],
             ),
-          );
+          ).animate().slideY(begin: -1, end: 0);
         }
         return const SizedBox.shrink();
       },

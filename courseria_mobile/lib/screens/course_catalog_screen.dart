@@ -42,84 +42,65 @@ class _CourseCatalogScreenState extends State<CourseCatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text("تصفح الكورسات"),
-        actions: [
-          Obx(() => _courseController.isAiSorting.value 
-            ? const Center(child: Padding(padding: EdgeInsets.all(12.0), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
-            : IconButton(
-                icon: const Icon(Icons.auto_awesome_rounded, color: Colors.amber),
-                onPressed: () => _courseController.sortCoursesByAI(),
-                tooltip: "رتب حسب اهتماماتي (AI)",
-              )),
-          IconButton(
-            icon: const Icon(Icons.filter_list_rounded),
-            onPressed: () {
-              // Show filter bottom sheet
-            },
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          RefreshIndicator(
-            onRefresh: () => _courseController.fetchCoursesFromApi(),
-            color: context.theme.primaryColor,
-            child: Column(
-              children: [
-                _buildSearchBar(),
-                _buildCategoriesList(),
-                Expanded(
-                  child: Obx(() {
-                    return Skeletonizer(
-                      enabled: _courseController.isLoading.value,
-                      child: _courseController.filteredCourses.isEmpty && !_courseController.isLoading.value
-                          ? EmptyStateWidget(
-                              title: "لا توجد كورسات",
-                              description: "جرب البحث عن شيء آخر أو تغيير التصنيف",
-                              onRetry: () => _courseController.fetchCoursesFromApi(),
-                            )
-                          : GridView.builder(
-                              controller: _scrollController,
-                              padding: EdgeInsets.all(16.r),
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                childAspectRatio: 0.72,
-                                crossAxisSpacing: 16.w,
-                                mainAxisSpacing: 16.h,
-                              ),
-                              itemCount: _courseController.isLoading.value 
-                                  ? 4 
-                                  : _courseController.filteredCourses.length,
-                              itemBuilder: (context, index) {
-                                if (_courseController.isLoading.value) {
-                                  return _buildFakeCourseCard();
-                                }
-                                final course = _courseController.filteredCourses[index];
-                                return _buildCourseCard(context, course);
-                              },
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: () => _courseController.fetchCoursesFromApi(),
+          color: context.theme.primaryColor,
+          child: Column(
+            children: [
+              _buildSearchBar(),
+              _buildCategoriesList(),
+              Expanded(
+                child: Obx(() {
+                  return Skeletonizer(
+                    enabled: _courseController.isLoading.value,
+                    child: _courseController.filteredCourses.isEmpty && !_courseController.isLoading.value
+                        ? EmptyStateWidget(
+                            title: "لا توجد كورسات",
+                            description: "جرب البحث عن شيء آخر أو تغيير التصنيف",
+                            onRetry: () => _courseController.fetchCoursesFromApi(),
+                          )
+                        : GridView.builder(
+                            controller: _scrollController,
+                            padding: EdgeInsets.all(16.r),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.72,
+                              crossAxisSpacing: 16.w,
+                              mainAxisSpacing: 16.h,
                             ),
-                    );
-                  }),
-                ),
-              ],
-            ),
+                            itemCount: _courseController.isLoading.value 
+                                ? 4 
+                                : _courseController.filteredCourses.length,
+                            itemBuilder: (context, index) {
+                              if (_courseController.isLoading.value) {
+                                return _buildFakeCourseCard();
+                              }
+                              final course = _courseController.filteredCourses[index];
+                              return _buildCourseCard(context, course);
+                            },
+                          ),
+                  );
+                }),
+              ),
+            ],
           ),
-          Obx(() => _showBackToTop.value
-              ? Positioned(
-                  bottom: 20.h,
-                  left: 20.w,
-                  child: FloatingActionButton.small(
-                    onPressed: () => _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeOut),
-                    backgroundColor: context.theme.primaryColor,
-                    child: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
-                  ).animate().fadeIn().scale(),
-                )
-              : const SizedBox.shrink()),
-        ],
-      ),
+        ),
+        Obx(() => _showBackToTop.value
+            ? Positioned(
+                bottom: 20.h,
+                right: 20.w,
+                child: FloatingActionButton(
+                  onPressed: () {
+                    _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+                  },
+                  backgroundColor: context.theme.primaryColor,
+                  child: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+                ),
+              )
+            : const SizedBox.shrink()),
+      ],
     );
   }
 
