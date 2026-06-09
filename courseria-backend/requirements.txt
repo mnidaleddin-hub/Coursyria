@@ -10,3 +10,6 @@ passlib[bcrypt]
 phonenumbers
 httpx
 pytz
+loguru
+resend
+bcrypt
