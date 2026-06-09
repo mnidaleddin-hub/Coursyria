@@ -4,6 +4,7 @@ from app.database import get_db, supabase_public, supabase_admin
 from app.dependencies import get_current_user, get_supabase_client
 from app.auth_utils import create_access_token
 from app.config import get_settings
+import requests
 from datetime import datetime, timedelta
 import uuid
 import random
@@ -119,18 +120,28 @@ async def test_wa_direct(
         "message": message
     }
     
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(url, json=payload, timeout=20.0)
-            return {
-                "status": "success" if response.status_code == 200 else "error",
-                "http_status": response.status_code,
-                "response": response.json() if response.status_code == 200 else response.text,
-                "sent_to": chat_id,
-                "using_instance": target_id
-            }
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+    headers = {"Content-Type": "application/json"}
+    
+    logger.info(f"[DIAGNOSTIC] Sending to WA: {url}")
+    logger.info(f"[DIAGNOSTIC] Payload: {json.dumps(payload)}")
+    
+    try:
+        # Use requests (synchronous but reliable for diagnostic)
+        response = requests.post(url, json=payload, headers=headers, timeout=20.0)
+        
+        logger.info(f"[DIAGNOSTIC] Status: {response.status_code}")
+        logger.info(f"[DIAGNOSTIC] Response: {response.text}")
+        
+        return {
+            "status": "success" if response.status_code == 200 else "error",
+            "http_status": response.status_code,
+            "response": response.json() if response.status_code == 200 else response.text,
+            "sent_to": chat_id,
+            "using_instance": target_id
+        }
+    except Exception as e:
+        logger.error(f"[DIAGNOSTIC] Error: {str(e)}")
+        return {"status": "error", "message": str(e)}
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
@@ -284,47 +295,38 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
     
     logger.info(f"Sending to {channel} via Green API...")
     logger.info(f"Endpoint: {api_url}/waInstance{id_instance}/sendMessage/****")
+    
+    payload = {
+        "chatId": chat_id,
+        "message": message_text
+    }
+    headers = {"Content-Type": "application/json"}
 
-    async with httpx.AsyncClient() as client:
+    # Implement exponential backoff retry mechanism (3 attempts)
+    for attempt in range(3):
         try:
-            # Implement exponential backoff retry mechanism (3 attempts)
-            for attempt in range(3):
-                try:
-                    response = await client.post(
-                        endpoint,
-                        json={
-                            "chatId": chat_id,
-                            "message": message_text
-                        },
-                        timeout=25.0
-                    )
-                    
-                    logger.info(f"Attempt {attempt+1} - Status: {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        logger.info(f"Message sent successfully: {response.text}")
-                        return {"status": "success", "message": "تم إرسال رمز التحقق بنجاح"}
-                    
-                    logger.error(f"Attempt {attempt+1} failed: {response.text}")
-                except (httpx.TimeoutException, httpx.RequestError) as e:
-                    logger.warning(f"Attempt {attempt+1} network error: {e}")
-
-                if attempt < 2:
-                    wait_time = (attempt + 1) * 3
-                    logger.info(f"Retrying in {wait_time} seconds...")
-                    await asyncio.sleep(wait_time)
+            # Use requests for maximum compatibility with the successful PowerShell test
+            response = requests.post(endpoint, json=payload, headers=headers, timeout=25.0)
             
-            raise HTTPException(
-                status_code=502, 
-                detail=f"فشل إرسال الرمز عبر {channel} بعد 3 محاولات. يرجى التأكد من أن الرقم مسجل في الخدمة."
-            )
+            logger.info(f"Attempt {attempt+1} - Status: {response.status_code}")
             
-        except httpx.TimeoutException:
-            logger.error(f"Green API Timeout on {channel}")
-            raise HTTPException(status_code=504, detail="انتهت مهلة الاتصال بمزود الخدمة (Green API)")
+            if response.status_code == 200:
+                logger.info(f"Message sent successfully: {response.text}")
+                return {"status": "success", "message": "تم إرسال رمز التحقق بنجاح"}
+            
+            logger.error(f"Attempt {attempt+1} failed: {response.text}")
         except Exception as e:
-            logger.error(f"Green API Request Error: {e}")
-            raise HTTPException(status_code=500, detail=f"خطأ تقني في إرسال الرسالة: {str(e)}")
+            logger.warning(f"Attempt {attempt+1} error: {str(e)}")
+
+        if attempt < 2:
+            wait_time = (attempt + 1) * 3
+            logger.info(f"Retrying in {wait_time} seconds...")
+            await asyncio.sleep(wait_time)
+    
+    raise HTTPException(
+        status_code=502, 
+        detail=f"فشل إرسال الرمز عبر {channel} بعد 3 محاولات. يرجى التأكد من أن الرقم مسجل في الخدمة."
+    )
 
 @router.get("/test-whatsapp")
 async def test_whatsapp(phone: str):
