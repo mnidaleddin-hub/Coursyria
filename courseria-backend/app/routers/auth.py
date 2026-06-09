@@ -104,13 +104,20 @@ async def test_wa_direct(
 ):
     """Diagnostic endpoint to test Green API directly with provided or server credentials"""
     try:
-        target_id = id_instance or settings.WA_ID_INSTANCE
-        target_token = token or settings.WA_TOKEN_INSTANCE
+        # Check if settings are accessible
+        try:
+            from app.config import get_settings
+            current_settings = get_settings()
+        except Exception as se:
+            return {"status": "error", "message": f"Settings error: {str(se)}"}
+
+        target_id = id_instance or current_settings.WA_ID_INSTANCE
+        target_token = token or current_settings.WA_TOKEN_INSTANCE
         
         if not target_id or not target_token:
-            return {"status": "error", "message": "WA credentials not provided and not on server"}
+            return {"status": "error", "message": f"WA credentials missing: ID={target_id}, TokenLen={len(target_token) if target_token else 0}"}
             
-        url = f"{settings.WA_API_URL}/waInstance{target_id}/sendMessage/{target_token}"
+        url = f"https://api.green-api.com/waInstance{target_id}/sendMessage/{target_token}"
         
         # Format phone
         clean_phone = str(phone).replace('+', '').replace(' ', '').replace('-', '')
@@ -123,13 +130,10 @@ async def test_wa_direct(
         
         headers = {"Content-Type": "application/json"}
         
-        # Use requests (synchronous but reliable for diagnostic)
-        logger.info(f"POSTing to Green API: {url}")
+        # Sync request for diagnostics
+        import requests
         response = requests.post(url, json=payload, headers=headers, timeout=20.0)
         
-        logger.info(f"[DIAGNOSTIC] Status: {response.status_code}")
-        
-        # Safe JSON parse
         try:
             res_data = response.json()
         except:
@@ -140,13 +144,10 @@ async def test_wa_direct(
             "http_status": response.status_code,
             "response": res_data,
             "sent_to": chat_id,
-            "using_instance": target_id
+            "url_used": f"https://api.green-api.com/waInstance{target_id}/sendMessage/****"
         }
     except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        logger.error(f"[DIAGNOSTIC] CRITICAL Error: {error_detail}")
-        return {"status": "error", "message": str(e), "trace": error_detail[:200]}
+        return {"status": "error", "message": str(e)}
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
