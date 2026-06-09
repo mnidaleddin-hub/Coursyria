@@ -84,6 +84,16 @@ async def verify_email_otp_dep():
     raise HTTPException(status_code=410, detail="تم إيقاف نظام التحقق عبر البريد. يرجى استخدام WhatsApp.")
 # ----------------------------
 
+@router.get("/check-wa-config")
+async def check_wa_config():
+    """Check if WA credentials are set (masked)"""
+    return {
+        "wa_id": settings.WA_ID_INSTANCE,
+        "wa_token_len": len(settings.WA_TOKEN_INSTANCE) if settings.WA_TOKEN_INSTANCE else 0,
+        "wa_api_url": settings.WA_API_URL,
+        "env": settings.ENV
+    }
+
 @router.post("/test-wa-direct")
 async def test_wa_direct(
     phone: str = Body(..., embed=True), 
