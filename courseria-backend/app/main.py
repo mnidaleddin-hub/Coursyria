@@ -141,6 +141,15 @@ async def log_requests(request, call_next):
         logger.critical(f"!!! CRITICAL BACKEND ERROR: {str(e)}")
         raise e
 
+@app.get("/debug-settings")
+async def debug_settings():
+    return {
+        "ENV": settings.ENV,
+        "WA_ID": settings.WA_ID_INSTANCE,
+        "WA_TOKEN_LEN": len(settings.WA_TOKEN_INSTANCE) if settings.WA_TOKEN_INSTANCE else 0,
+        "ALLOWED_ORIGINS": settings.ALLOWED_ORIGINS
+    }
+
 # Root health-check endpoint
 @app.get("/")
 @app.get("/health")
