@@ -280,10 +280,10 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
         logger.error(f"Missing credentials for {channel}")
         raise HTTPException(status_code=500, detail=f"إعدادات إرسال {channel} غير مكتملة على الخادم")
 
-    endpoint = f"{api_url}/waInstance{id_instance}/sendMessage/{token_instance}"
+    # FORCE USE THE SUCCESSFUL DOMAIN PROVIDED BY USER
+    endpoint = f"https://7107.api.greenapi.com/waInstance{id_instance}/sendMessage/{token_instance}"
     
-    logger.info(f"Sending to {channel} via Green API...")
-    logger.info(f"Endpoint: {api_url}/waInstance{id_instance}/sendMessage/****")
+    logger.info(f"Sending to {channel} via Green API (Forced 7107 Domain)...")
 
     async with httpx.AsyncClient() as client:
         try:
