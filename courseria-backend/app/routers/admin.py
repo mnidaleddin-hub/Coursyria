@@ -16,7 +16,7 @@ def verify_admin(user=Depends(get_current_user)):
 
 @router.post("/transactions/{tx_id}/approve")
 async def approve_transaction(tx_id: str, admin=Depends(verify_admin), db=Depends(get_db_admin)):
-    """الموافقة على معاملة وشحن رصيد الطالب (يستخدم عميل الأدمن لتخطي RLS)"""
+    """الموافقة على معاملة (نظام التدقيق المزدوج)"""
     try:
         # 1. جلب المعاملة
         tx_res = db.table("wallet_transactions").select("*").eq("id", tx_id).single().execute()
@@ -24,31 +24,105 @@ async def approve_transaction(tx_id: str, admin=Depends(verify_admin), db=Depend
             raise HTTPException(status_code=404, detail="المعاملة غير موجودة")
         
         tx = tx_res.data
-        if tx["status"] != "pending":
-            raise HTTPException(status_code=400, detail="هذه المعاملة تمت معالجتها مسبقاً")
+        if tx["status"] == "approved":
+            raise HTTPException(status_code=400, detail="هذه المعاملة تمت الموافقة عليها مسبقاً")
 
-        # 2. تحديث الرصيد
-        wallet_res = db.table("wallets").select("balance").eq("user_id", tx["user_id"]).maybe_single().execute()
-        current_balance = wallet_res.data["balance"] if wallet_res.data else 0
-        new_balance = current_balance + tx["amount"]
+        # التحقق من المدققين
+        auditor1 = tx.get("audited_by_1")
+        auditor2 = tx.get("audited_by_2")
 
-        db.table("wallets").upsert({
-            "user_id": tx["user_id"],
-            "balance": new_balance,
-            "updated_at": datetime.datetime.utcnow().isoformat()
-        }).execute()
+        if not auditor1:
+            # أول تدقيق
+            db.table("wallet_transactions").update({
+                "audited_by_1": admin["user_id"],
+                "audited_at_1": datetime.datetime.utcnow().isoformat(),
+                "status": "pending_second_audit"
+            }).eq("id", tx_id).execute()
+            return {"status": "success", "message": "تم التدقيق الأول، بانتظار مدقق ثانٍ"}
+        
+        if auditor1 == admin["user_id"]:
+            raise HTTPException(status_code=400, detail="لا يمكن لنفس المدقق الموافقة مرتين")
 
-        # 3. تحديث حالة المعاملة
-        db.table("wallet_transactions").update({
-            "status": "approved",
-            "processed_at": datetime.datetime.utcnow().isoformat(),
-            "processed_by": admin["user_id"]
-        }).eq("id", tx_id).execute()
+        if not auditor2:
+            # التدقيق الثاني والنهائي
+            # 2. تحديث الرصيد
+            wallet_res = db.table("wallets").select("balance").eq("user_id", tx["user_id"]).maybe_single().execute()
+            current_balance = wallet_res.data["balance"] if wallet_res.data else 0
+            new_balance = current_balance + tx["amount"]
 
-        return {"status": "success", "message": "تمت الموافقة وشحن الرصيد بنجاح"}
+            db.table("wallets").upsert({
+                "user_id": tx["user_id"],
+                "balance": new_balance,
+                "updated_at": datetime.datetime.utcnow().isoformat()
+            }).execute()
+
+            # 3. تحديث حالة المعاملة
+            db.table("wallet_transactions").update({
+                "audited_by_2": admin["user_id"],
+                "audited_at_2": datetime.datetime.utcnow().isoformat(),
+                "status": "approved",
+                "processed_at": datetime.datetime.utcnow().isoformat(),
+                "processed_by": admin["user_id"]
+            }).eq("id", tx_id).execute()
+
+            # 4. توزيع الأجور آلياً (محاكاة)
+            await distribute_shares(tx["amount"], tx["user_id"], db)
+
+            return {"status": "success", "message": "تمت الموافقة النهائية وشحن الرصيد بنجاح"}
+
+        return {"status": "error", "message": "المعاملة مكتملة بالفعل"}
     except Exception as e:
         print(f"!!! Admin Approve Error: {e}")
         raise HTTPException(status_code=500, detail="فشل في إتمام الموافقة")
+
+async def distribute_shares(amount: float, student_id: str, db):
+    """توزيع الأجور آلياً للمعلمين والمساهمين"""
+    # مثال: 60% للمعلم، 20% للمنصة، 10% للتسويق، 10% صيانة
+    try:
+        # هذه الوظيفة تفترض وجود جدول share_distributions
+        db.table("share_distributions").insert({
+            "amount": amount,
+            "teacher_share": amount * 0.6,
+            "platform_share": amount * 0.2,
+            "marketing_share": amount * 0.1,
+            "maintenance_share": amount * 0.1,
+            "created_at": datetime.datetime.utcnow().isoformat()
+        }).execute()
+    except Exception as e:
+        print(f"Share Distribution Log Error: {e}")
+
+@router.get("/reports/daily")
+async def get_daily_report(admin=Depends(verify_admin), db=Depends(get_db_admin)):
+    """تقرير مالي يومي آلي"""
+    try:
+        today = datetime.date.today().isoformat()
+        tx_res = db.table("wallet_transactions").select("*").gte("created_at", today).execute()
+        
+        total_recharged = sum(tx["amount"] for tx in tx_res.data if tx["status"] == "approved")
+        pending_count = sum(1 for tx in tx_res.data if tx["status"] != "approved")
+        
+        return {
+            "date": today,
+            "total_recharged": total_recharged,
+            "pending_transactions": pending_count,
+            "transactions": tx_res.data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="فشل في توليد التقرير")
+
+@router.post("/content/audit/{lesson_id}")
+async def audit_content(lesson_id: str, is_approved: bool, admin=Depends(verify_admin), db=Depends(get_db_admin)):
+    """لوحة تدقيق المحتوى قبل النشر"""
+    try:
+        status = "published" if is_approved else "rejected"
+        db.table("lessons").update({
+            "status": status,
+            "audited_by": admin["user_id"],
+            "audited_at": datetime.datetime.utcnow().isoformat()
+        }).eq("id", lesson_id).execute()
+        return {"status": "success", "message": f"تم تحديث حالة الدرس إلى {status}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="فشل في تدقيق المحتوى")
 
 @router.post("/charity-requests/{req_id}/grant")
 async def grant_charity_course(req_id: str, course_id: str, admin=Depends(verify_admin), db=Depends(get_db_admin)):

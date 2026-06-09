@@ -39,6 +39,8 @@ async def get_courses(db=Depends(get_supabase_client)):
         response = db.table("courses").select("*, lessons(*)").execute()
         return response.data
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Supabase Fetch Error: {e}")
         raise HTTPException(status_code=500, detail="فشل في جلب الكورسات")
 

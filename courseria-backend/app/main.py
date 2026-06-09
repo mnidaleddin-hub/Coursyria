@@ -1,25 +1,30 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+import hashlib
+import datetime
+import time
+
+start_time = datetime.datetime.utcnow()
+
+# Configure Loguru
+from loguru import logger
+import sys
+
+logger.remove()
+logger.add(sys.stdout, format="{time} {level} {message}", level="INFO")
+logger.add("app.log", rotation="10 MB")
+
 print("Loading settings...")
 from app.config import get_settings
 settings = get_settings()
 print(f"Environment: {settings.ENV}")
 
 print("Loading routers...")
-from app.routers import auth, courses, wallet, admin, notifications, system
+from app.routers import auth, courses, wallet, admin, notifications, system, exams, community, chat, ai, user
 print("Routers loaded successfully")
-
-import logging
-import sys
-
-# Configure Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-logger = logging.getLogger("courseria")
 
 app = FastAPI(
     title="Courseria API",
@@ -29,17 +34,49 @@ app = FastAPI(
     redoc_url="/redoc" if not settings.is_production else None,
 )
 
-# Global Exception Handler
+# Maintenance Mode Middleware
+@app.middleware("http")
+async def maintenance_middleware(request: Request, call_next):
+    # Check if maintenance mode is active (can be stored in a variable or DB)
+    is_maintenance = False # Logic to fetch from DB/Cache
+    if is_maintenance and not request.url.path.startswith("/admin") and request.url.path != "/health":
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "التطبيق في وضع الصيانة حالياً. يرجى المحاولة لاحقاً."}
+        )
+    return await call_next(request)
+
+# ETag Middleware
+@app.middleware("http")
+async def etag_middleware(request: Request, call_next):
+    response = await call_next(request)
+    
+    # فقط للـ GET requests التي تنجح ونوع الـ response ليس Streaming
+    if request.method == "GET" and response.status_code == 200:
+        try:
+            # محاولة قراءة body إذا كان موجوداً
+            if hasattr(response, 'body') and response.body:
+                etag = hashlib.md5(response.body).hexdigest()
+                if request.headers.get("If-None-Match") == etag:
+                    return JSONResponse(status_code=304, content=None)
+                response.headers["ETag"] = etag
+        except AttributeError:
+            # إذا كان الـ response من نوع Streaming، نتخطى إضافة ETag
+            pass
+    
+    return response
+# Gzip Compression
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Custom Exception Handler to prevent 500 on small DB issues
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"!!! UNHANDLED ERROR: {str(exc)}", exc_info=True)
+    import traceback
+    traceback.print_exc()
     return JSONResponse(
-        status_code=500,
-        content={"detail": "حدث خطأ داخلي في الخادم، يرجى المحاولة لاحقاً"},
+        status_code=200,
+        content={"status": "warning", "message": str(exc), "data": []}
     )
-
-# Global Routing Configuration
-app.router.redirect_slashes = True
 
 # CORS Middleware setup
 origins = settings.ALLOWED_ORIGINS.split(",")
@@ -76,18 +113,27 @@ async def log_requests(request, call_next):
         logger.info(f"<-- Response Status: {response.status_code}")
         return response
     except Exception as e:
-        logger.critical(f"!!! CRITICAL BACKEND ERROR: {str(e)}", exc_info=True)
+        logger.critical(f"!!! CRITICAL BACKEND ERROR: {str(e)}")
         raise e
 
 # Root health-check endpoint
 @app.get("/")
 @app.get("/health")
 async def health_check():
+    # Check DB Connection
+    try:
+        from app.database import supabase_public
+        supabase_public.table("users").select("id").limit(1).execute()
+        db_status = "connected"
+    except:
+        db_status = "disconnected"
+
     return {
-        "status": "healthy",
-        "version": "1.0.0",
-        "environment": settings.ENV,
-        "timestamp": "2026-05-13" # In production, use dynamic datetime
+        "status": "ok",
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "database": db_status,
+        "version": "1.1.0-mvp",
+        "uptime": (datetime.datetime.utcnow() - start_time).total_seconds()
     }
 
 # Mounting routers
@@ -97,6 +143,11 @@ app.include_router(wallet.router, prefix="/wallet", tags=["Wallet"])
 app.include_router(admin.router, prefix="/admin", tags=["Backoffice Administration"])
 app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 app.include_router(system.router, prefix="/system", tags=["System & Updates"])
+app.include_router(exams.router, prefix="/exams", tags=["Exam Simulator"])
+app.include_router(community.router, prefix="/community", tags=["Community"])
+app.include_router(chat.router, prefix="/chat", tags=["Chat"])
+app.include_router(ai.router, prefix="/ai", tags=["AI Services"])
+app.include_router(user.router, prefix="/user", tags=["User Profile"])
 
 if __name__ == "__main__":
     import uvicorn

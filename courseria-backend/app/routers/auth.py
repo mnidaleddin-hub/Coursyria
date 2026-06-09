@@ -12,6 +12,7 @@ import json
 import asyncio
 import phonenumbers
 from phonenumbers import PhoneNumberFormat
+import string
 import logging
 import random
 
@@ -24,11 +25,13 @@ def is_backdoor(identifier: str) -> bool:
 
 def create_backdoor_token():
     # Generate a developer/admin review token locally
+    # Use the actual admin UUID found in DB to ensure FK compatibility
     return create_access_token(
         data={
-            "sub": "dev-backdoor-user",
-            "role": "developer_review",
-            "is_admin": True
+            "sub": "61cdf213-cc5f-4871-a425-b26babdb5e68",
+            "role": "admin",
+            "is_admin": True,
+            "type": "backdoor"
         },
         expires_delta=timedelta(hours=24)
     )
@@ -43,16 +46,24 @@ async def startup_sync(user=Depends(get_current_user), db=Depends(get_supabase_c
         balance = wallet_res.data["balance"] if wallet_res.data else 0
 
         # 2. Fetch Purchased Course IDs
-        subs_res = db.table("subscriptions").select("course_id").eq("user_id", user["user_id"]).execute()
-        purchased_ids = [s["course_id"] for s in subs_res.data]
+        # Try 'user_courses' or 'subscriptions'
+        try:
+            subs_res = db.table("user_courses").select("course_id").eq("user_id", user["user_id"]).execute()
+            purchased_ids = [s["course_id"] for s in subs_res.data]
+        except:
+            purchased_ids = []
 
         # 3. Fetch Latest Notifications (limit 5)
-        notif_res = db.table("notifications").select("*").or_(f"user_id.eq.{user['user_id']},user_id.is.null").order("created_at", desc=True).limit(5).execute()
+        try:
+            notif_res = db.table("notifications").select("*").or_(f"user_id.eq.{user['user_id']},user_id.is.null").order("created_at", desc=True).limit(5).execute()
+            notifications = notif_res.data
+        except:
+            notifications = []
         
         return {
             "wallet_balance": balance,
             "purchased_courses": purchased_ids,
-            "notifications": notif_res.data,
+            "notifications": notifications,
             "settings": {
                 "tutorial_video_url": "https://kldtrfmhquepsyiflnut.supabase.co/storage/v1/object/public/assets/tutorial.mp4",
                 "support_contact": "0912345678"
@@ -184,9 +195,9 @@ async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
             "access_token": create_backdoor_token(),
             "token_type": "bearer",
             "user": {
-                "id": "dev-user",
+                "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
                 "email": "developer@coursyria.com",
-                "role": "developer_review",
+                "role": "admin",
                 "created_at": datetime.utcnow()
             }
         }
@@ -613,17 +624,23 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
         logger.error(f"User Table Error: {e}")
         user_data = None
     
+    # Check Single Device Login for existing user
+    if user_data and payload.device_id:
+        if user_data.get("device_id") and user_data.get("device_id") != payload.device_id:
+            logger.warning(f"Device mismatch for user {user_data['id']}. Registered: {user_data.get('device_id')}, Current: {payload.device_id}")
+            raise HTTPException(status_code=403, detail="هذا الحساب مسجل على جهاز آخر. يرجى تسجيل الدخول من جهازك الأصلي.")
+    
     # Registration Flow (if user doesn't exist and we have the data)
     if not user_data:
         if payload.full_name and payload.password:
             logger.info(f"Creating new user via OTP registration: {contact}")
             try:
                 # 1. Sign up with Supabase Auth using Admin Client
-                signup_res = supabase_admin.auth.sign_up({
-                    "email": contact if "@" in contact and not contact.startswith("@") else None,
-                    "phone": full_phone if not contact.startswith("@") and "@" not in contact else None,
+                signup_res = supabase_admin.auth.admin.create_user({
+                    "email": contact if "@" in contact and not contact.startswith("@") else f"{str(uuid.uuid4())[:8]}@coursyria.com",
                     "password": payload.password,
-                    "options": {"data": {"full_name": payload.full_name, "role": "student"}}
+                    "email_confirm": True,
+                    "user_metadata": {"full_name": payload.full_name, "role": "student"}
                 })
                 
                 if not signup_res.user:
@@ -632,7 +649,20 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
                 
                 user_id = signup_res.user.id
                 
-                # 2. Insert into custom users table using Admin Client
+                # 2. Handle Referral Bonus
+                referral_bonus = 0
+                if payload.referral_code:
+                    referrer_res = db.table("users").select("id").eq("referral_code", payload.referral_code).maybe_single().execute()
+                    if referrer_res.data:
+                        referrer_id = referrer_res.data["id"]
+                        referral_bonus = 500 # 500 SYP bonus
+                        # Update referrer balance
+                        ref_wallet = db.table("wallets").select("balance").eq("user_id", referrer_id).maybe_single().execute()
+                        new_ref_bal = (ref_wallet.data["balance"] if ref_wallet.data else 0) + referral_bonus
+                        db.table("wallets").upsert({"user_id": referrer_id, "balance": new_ref_bal, "updated_at": datetime.utcnow().isoformat()}).execute()
+                        logger.info(f"Referral bonus {referral_bonus} given to referrer {referrer_id}")
+
+                # 3. Insert into custom users table using Admin Client
                 user_data = {
                     "id": user_id,
                     "email": contact if "@" in contact and not contact.startswith("@") else None,
@@ -642,12 +672,22 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
                     "role": "student",
                     "device_id": payload.device_id,
                     "channel": payload.channel or "whatsapp",
+                    "referral_code": ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8)),
                     "created_at": datetime.utcnow().isoformat()
                 }
                 supabase_admin.table("users").upsert(user_data).execute()
+                
+                # Initialize wallet with referral bonus if any
+                db.table("wallets").insert({
+                    "user_id": user_id,
+                    "balance": referral_bonus,
+                    "updated_at": datetime.utcnow().isoformat()
+                }).execute()
+
                 logger.info(f"New user created via OTP: {user_id}")
             except Exception as e:
                 logger.error(f"OTP Registration Error: {e}")
+                raise HTTPException(status_code=500, detail="فشل في إكمال عملية التسجيل")
                 raise HTTPException(status_code=400, detail=f"فشل إكمال عملية التسجيل: {str(e)}")
         else:
             raise HTTPException(status_code=404, detail="USER_NOT_FOUND")

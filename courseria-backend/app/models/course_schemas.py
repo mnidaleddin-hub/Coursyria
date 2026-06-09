@@ -14,7 +14,25 @@ class QuizQuestion(BaseModel):
     question_text: str
     options: List[str]
     correct_option_index: int
+    difficulty: str = "medium"  # easy, medium, hard, exam
+    skill_type: str = "comprehension"  # comprehension, application, analysis, synthesis
     explanation: Optional[str] = None
+    video_explanation_url: Optional[str] = None
+    timestamp_start: Optional[int] = None
+    timestamp_end: Optional[int] = None
+
+class QuizBase(BaseModel):
+    id: str
+    title: str
+    description: Optional[str] = None
+    quiz_type: str = "standard"  # lesson_quiz, mock_exam, custom
+    grade: Optional[str] = None  # 9th, bac_scientific, bac_literary
+    subject: Optional[str] = None
+    time_limit: Optional[int] = None
+    passing_score: int = 60
+    is_published: bool = True
+    questions_count: int = 0
+    created_at: datetime
 
 class QuizSubmission(BaseModel):
     lesson_id: str
@@ -22,11 +40,20 @@ class QuizSubmission(BaseModel):
 
 class LessonBase(BaseModel):
     id: str
+    course_id: str
     title: str
-    duration: Optional[str] = None
+    content: Optional[str] = None
     video_url: Optional[str] = None
-    is_free: bool = False
+    duration_minutes: int = 0
     order_index: int = 0
+    is_free: bool = False
+    created_at: Optional[datetime] = None
+    # Extra fields
+    likes_count: int = 0
+    views_count: int = 0
+    thumbnail_url: Optional[str] = None
+    video_description: Optional[str] = None
+    # Optional fields for joined data
     worksheets: List[LessonAsset] = []
     solved_tests: List[LessonAsset] = []
     unsolved_tests: List[LessonAsset] = []
@@ -43,14 +70,14 @@ class CourseReview(BaseModel):
 class CourseBase(BaseModel):
     id: str
     title: str
-    instructor: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
     price: float
-    subject: str
-    rating: float = 0.0
-    cover_url: Optional[str] = None
-    created_at: datetime
-    is_purchased: bool = False
-    reviews: List[CourseReview] = []
+    teacher_id: Optional[str] = None
+    difficulty: str = "medium"
+    duration_hours: int = 0
+    is_published: bool = True
+    created_at: Optional[datetime] = None
 
 class CourseWithLessons(CourseBase):
     lessons: List[LessonBase]

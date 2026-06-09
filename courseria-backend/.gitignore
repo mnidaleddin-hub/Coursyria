@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+venv/
+.env
+app.log
+audit_results.json
+final_guarantee_report.json
+server_log.txt
+server_8080.log
+.pytest_cache/
+.DS_Store
