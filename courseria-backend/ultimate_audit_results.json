@@ -3,7 +3,7 @@
     "name": "1.1 Send Email OTP",
     "endpoint": "POST /auth/send-email-otp",
     "status": 500,
-    "duration": 2490.736722946167,
+    "duration": 3676.525592803955,
     "success": false,
     "response_summary": "{'detail': 'حدث خطأ أثناء إرسال الرمز: 500: فشل إرسال البريد الإلكتروني. يرجى مراجعة إعدادات SMTP'}",
     "logic_issue": null
@@ -12,7 +12,7 @@
     "name": "1.2 Verify OTP (Backdoor)",
     "endpoint": "POST /auth/verify-email-otp",
     "status": 200,
-    "duration": 264.6186351776123,
+    "duration": 371.1066246032715,
     "success": true,
     "response_summary": "{'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MWNkZjIxMy1jYzVmLTQ4NzEtYTQyNS1iM",
     "logic_issue": null
@@ -21,7 +21,7 @@
     "name": "2.1 Get Profile",
     "endpoint": "GET /user/me",
     "status": 200,
-    "duration": 533.6830615997314,
+    "duration": 585.6442451477051,
     "success": true,
     "response_summary": "{'id': '61cdf213-cc5f-4871-a425-b26babdb5e68', 'phone_number': '+963930111876', 'email': 'm.nidaledd",
     "logic_issue": null
@@ -30,7 +30,7 @@
     "name": "2.2 Update Name",
     "endpoint": "PUT /user/me",
     "status": 200,
-    "duration": 415.210485458374,
+    "duration": 593.2776927947998,
     "success": true,
     "response_summary": "{'id': '61cdf213-cc5f-4871-a425-b26babdb5e68', 'phone_number': '+963930111876', 'email': 'm.nidaledd",
     "logic_issue": null
@@ -39,7 +39,7 @@
     "name": "3.1 Fetch All Courses",
     "endpoint": "GET /courses",
     "status": 200,
-    "duration": 505.5873394012451,
+    "duration": 731.0118675231934,
     "success": true,
     "response_summary": "[{'id': 'a1b2c3d4-e5f6-7a8b-9c10-111213141516', 'title': 'التحليل الرياضي - الجزء الأول', 'descripti",
     "logic_issue": null
@@ -48,7 +48,7 @@
     "name": "3.2 Course Details",
     "endpoint": "GET /courses/a1b2c3d4-e5f6-7a8b-9c10-111213141516",
     "status": 200,
-    "duration": 530.0781726837158,
+    "duration": 767.7924633026123,
     "success": true,
     "response_summary": "{'id': 'a1b2c3d4-e5f6-7a8b-9c10-111213141516', 'title': 'التحليل الرياضي - الجزء الأول', 'descriptio",
     "logic_issue": null
@@ -57,34 +57,34 @@
     "name": "4.1 Create Community Post",
     "endpoint": "POST /community/posts",
     "status": 201,
-    "duration": 750.3178119659424,
+    "duration": 547.1804141998291,
     "success": true,
-    "response_summary": "{'id': '6dfd2c53-b2fd-4448-a5b8-4edbcd9fdf14', 'user_id': '61cdf213-cc5f-4871-a425-b26babdb5e68', 'c",
+    "response_summary": "{'id': 'df1319f4-b717-41da-afe1-05189c813cb3', 'user_id': '61cdf213-cc5f-4871-a425-b26babdb5e68', 'c",
     "logic_issue": null
   },
   {
     "name": "4.3 Fetch Posts List",
     "endpoint": "GET /community/posts",
     "status": 200,
-    "duration": 1140.2876377105713,
+    "duration": 497.9546070098877,
     "success": true,
-    "response_summary": "[{'id': '6dfd2c53-b2fd-4448-a5b8-4edbcd9fdf14', 'user_id': '61cdf213-cc5f-4871-a425-b26babdb5e68', '",
+    "response_summary": "[{'id': 'df1319f4-b717-41da-afe1-05189c813cb3', 'user_id': '61cdf213-cc5f-4871-a425-b26babdb5e68', '",
     "logic_issue": null
   },
   {
     "name": "4.4 Add Comment",
-    "endpoint": "POST /community/posts/6dfd2c53-b2fd-4448-a5b8-4edbcd9fdf14/comments",
+    "endpoint": "POST /community/posts/df1319f4-b717-41da-afe1-05189c813cb3/comments",
     "status": 200,
-    "duration": 1058.800220489502,
+    "duration": 654.2003154754639,
     "success": true,
-    "response_summary": "{'id': 'f1d15007-23fd-4036-99fb-cac9b9e9677d', 'post_id': '6dfd2c53-b2fd-4448-a5b8-4edbcd9fdf14', 'u",
+    "response_summary": "{'id': 'b496dc92-237e-417c-9567-d0629edb7b56', 'post_id': 'df1319f4-b717-41da-afe1-05189c813cb3', 'u",
     "logic_issue": null
   },
   {
     "name": "5.1 Check Wallet Balance",
     "endpoint": "GET /wallet/balance",
     "status": 200,
-    "duration": 520.4923152923584,
+    "duration": 756.2572956085205,
     "success": true,
     "response_summary": "{'balance': 0}",
     "logic_issue": null
@@ -93,7 +93,7 @@
     "name": "5.2 Use Promo Code (Fake)",
     "endpoint": "POST /wallet/use-promo-code",
     "status": 200,
-    "duration": 554.0306568145752,
+    "duration": 426.8193244934082,
     "success": true,
     "response_summary": "{'status': 'error', 'message': 'الكود غير صالح'}",
     "logic_issue": null
@@ -102,7 +102,7 @@
     "name": "6.1 AI Chat (Newton 3rd Law)",
     "endpoint": "POST /ai/chat",
     "status": 500,
-    "duration": 522.7973461151123,
+    "duration": 993.6184883117676,
     "success": false,
     "response_summary": "{'detail': \"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/cha",
     "logic_issue": null
@@ -111,7 +111,7 @@
     "name": "6.2 AI Summarize (Cloud Computing)",
     "endpoint": "POST /ai/summarize",
     "status": 500,
-    "duration": 620.3994750976562,
+    "duration": 839.6584987640381,
     "success": false,
     "response_summary": "{'detail': \"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/cha",
     "logic_issue": null
@@ -120,7 +120,7 @@
     "name": "6.3 AI Generate Quiz",
     "endpoint": "POST /ai/generate-quiz",
     "status": 500,
-    "duration": 602.1568775177002,
+    "duration": 700.0043392181396,
     "success": false,
     "response_summary": "{'detail': \"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/cha",
     "logic_issue": null
@@ -129,7 +129,7 @@
     "name": "6.4 AI Explain LI5",
     "endpoint": "POST /ai/explain-like-im-5",
     "status": 500,
-    "duration": 503.3299922943115,
+    "duration": 580.1699161529541,
     "success": false,
     "response_summary": "{'detail': \"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/cha",
     "logic_issue": null
@@ -138,7 +138,7 @@
     "name": "6.5 AI Flashcards",
     "endpoint": "POST /ai/flashcards",
     "status": 500,
-    "duration": 532.1202278137207,
+    "duration": 584.4235420227051,
     "success": false,
     "response_summary": "{'detail': \"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/cha",
     "logic_issue": null
@@ -147,7 +147,7 @@
     "name": "6.6 AI Grammar Correction",
     "endpoint": "POST /ai/grammar-corrector",
     "status": 500,
-    "duration": 369.17805671691895,
+    "duration": 609.614372253418,
     "success": false,
     "response_summary": "{'detail': \"AI service error: Client error '404 Not Found' for url 'https://openrouter.ai/api/v1/cha",
     "logic_issue": null
@@ -156,7 +156,7 @@
     "name": "7.1 Generate Mock Exam",
     "endpoint": "GET /exams/generate-mock",
     "status": 200,
-    "duration": 363.05737495422363,
+    "duration": 428.9281368255615,
     "success": true,
     "response_summary": "[]",
     "logic_issue": null
@@ -165,7 +165,7 @@
     "name": "8.1 Get Chat Rooms",
     "endpoint": "GET /chat/rooms",
     "status": 200,
-    "duration": 886.3439559936523,
+    "duration": 508.23307037353516,
     "success": true,
     "response_summary": "[]",
     "logic_issue": null
@@ -174,7 +174,7 @@
     "name": "9.1 Get User Stats",
     "endpoint": "GET /user/stats",
     "status": 200,
-    "duration": 550.1632690429688,
+    "duration": 544.3675518035889,
     "success": true,
     "response_summary": "{'points': 0, 'purchased_courses_count': 0, 'average_exam_score': 0, 'rank': 'طالب جديد', 'achieveme",
     "logic_issue": null
@@ -183,16 +183,16 @@
     "name": "9.3 System Health Check",
     "endpoint": "GET /health",
     "status": 200,
-    "duration": 711.1706733703613,
+    "duration": 402.111291885376,
     "success": true,
-    "response_summary": "{'status': 'ok', 'timestamp': '2026-06-09T13:54:56.550042', 'database': 'connected', 'version': '1.1",
+    "response_summary": "{'status': 'ok', 'timestamp': '2026-06-09T13:57:40.406328', 'database': 'connected', 'version': '1.1",
     "logic_issue": null
   },
   {
     "name": "10.1 Non-existent Course (404)",
     "endpoint": "GET /courses/99999999-9999-9999-9999-999999999999",
     "status": 500,
-    "duration": 400.9218215942383,
+    "duration": 528.606653213501,
     "success": false,
     "response_summary": "{'detail': 'فشل في جلب تفاصيل الكورس'}",
     "logic_issue": null
@@ -201,16 +201,16 @@
     "name": "10.2 Empty Post Content (Bad Request)",
     "endpoint": "POST /community/posts",
     "status": 201,
-    "duration": 515.9733295440674,
+    "duration": 408.0984592437744,
     "success": true,
-    "response_summary": "{'id': 'c7ed49a6-e7a9-48bb-a54e-b7636f87ffbb', 'user_id': '61cdf213-cc5f-4871-a425-b26babdb5e68', 'c",
+    "response_summary": "{'id': '87f5b375-b2d6-4d9e-b821-9a613c9121be', 'user_id': '61cdf213-cc5f-4871-a425-b26babdb5e68', 'c",
     "logic_issue": null
   },
   {
     "name": "10.3 Access without Token (401)",
     "endpoint": "GET /user/me",
     "status": 401,
-    "duration": 416.68105125427246,
+    "duration": 369.6157932281494,
     "success": false,
     "response_summary": "{'detail': 'لم يتم توفير توكن المصادقة'}",
     "logic_issue": null

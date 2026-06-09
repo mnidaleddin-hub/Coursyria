@@ -73,224 +73,16 @@ async def startup_sync(user=Depends(get_current_user), db=Depends(get_supabase_c
         print(f"!!! Startup Sync Error: {e}")
         raise HTTPException(status_code=500, detail="فشل مزامنة بيانات الإقلاع")
 
-async def send_email_http(to_email: str, otp: str):
-    """Sends OTP via Resend HTTP API bypassing SMTP port blocks"""
-    if not settings.EMAIL_API_KEY:
-        logger.error("Resend API Key (EMAIL_API_KEY) not configured")
-        return False
-        
-    try:
-        url = settings.EMAIL_API_URL
-        headers = {
-            "Authorization": f"Bearer {settings.EMAIL_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        html_body = f"""
-        <div dir="rtl" style="font-family: Arial, sans-serif; text-align: center; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #16213E;">مرحباً بك في كورسيريا</h2>
-            <p style="font-size: 16px; color: #555;">رمز التحقق الخاص بك هو:</p>
-            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <h1 style="color: #E94560; font-size: 36px; letter-spacing: 5px; margin: 0;">{otp}</h1>
-            </div>
-            <p style="font-size: 14px; color: #888;">هذا الرمز صالح لمدة 10 دقائق. يرجى عدم مشاركته مع أحد.</p>
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
-            <p style="color: #aaa; font-size: 12px;">إذا لم تطلب هذا الرمز، يرجى تجاهل هذه الرسالة.</p>
-        </div>
-        """
-        
-        payload = {
-            "from": settings.FROM_EMAIL,
-            "to": to_email,
-            "subject": f"{otp} هو رمز التحقق الخاص بك في كورسيريا",
-            "html": html_body
-        }
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, headers=headers, json=payload, timeout=30.0)
-            
-            if response.status_code in [200, 201]:
-                logger.info(f"Resend HTTP OTP sent successfully to {to_email}")
-                return True
-            else:
-                logger.error(f"Resend API Error: {response.status_code} - {response.text}")
-                return False
-                
-    except Exception as e:
-        logger.error(f"HTTP Email sending failed: {e}")
-        return False
+# --- DEPRECATED EMAIL OTP ---
+# These endpoints are now disabled in favor of WhatsApp/Telegram
+@router.post("/send-email-otp", include_in_schema=False)
+async def send_email_otp_dep():
+    raise HTTPException(status_code=410, detail="تم إيقاف نظام التحقق عبر البريد. يرجى استخدام WhatsApp.")
 
-@router.post("/send-email-otp")
-async def send_email_otp(payload: EmailOTPRequest, db=Depends(get_db)):
-    """Generates and stores a 6-digit OTP and sends via Direct SMTP"""
-    # Use admin client for existence checks to bypass RLS
-    admin_db = supabase_admin
-    
-    email = payload.email.lower().strip()
-    otp_type = payload.type
-    
-    if not email:
-        raise HTTPException(status_code=422, detail="البريد الإلكتروني مطلوب")
-    
-    # 1. Backdoor Check
-    if is_backdoor(email):
-        return {"status": "success", "message": "Backdoor active", "is_backdoor": True}
-
-    # 2. Business Logic Check - Using admin_db to bypass RLS
-    user_res = admin_db.table("users").select("*").eq("email", email).execute()
-    user_exists = len(user_res.data) > 0
-    
-    if otp_type == "login" and not user_exists:
-        raise HTTPException(status_code=404, detail="USER_NOT_FOUND")
-    elif otp_type == "register" and user_exists:
-        raise HTTPException(status_code=400, detail="USER_ALREADY_EXISTS")
-
-    # 3. Generate and Store OTP
-    otp = str(random.randint(100000, 999999))
-    
-    # Use the existing phone_verifications table for storage
-    # Reusing admin_db to ensure we can write to it
-    try:
-        now = datetime.utcnow()
-        expires_at = (now + timedelta(minutes=10)).isoformat()
-        
-        verification_data = {
-            "phone_number": email, 
-            "otp_code": otp,
-            "channel": "email", 
-            "expires_at": expires_at,
-            "created_at": now.isoformat()
-        }
-        
-        logger.info(f"[AUTH] Upserting Email OTP to DB: {verification_data}")
-        print(f"[DEBUG] DB Payload: {verification_data}")
-        
-        res = admin_db.table("phone_verifications").upsert(verification_data).execute()
-        logger.info(f"[AUTH] DB Response: {res.data if hasattr(res, 'data') else 'No data'}")
-        
-        # 4. Send via HTTP API
-        success = await send_email_http(email, otp)
-        
-        if success:
-            return {"status": "success", "message": "تم إرسال رمز التحقق إلى بريدك الإلكتروني"}
-        else:
-            # Fallback to Supabase if SMTP fails (optional, but safer to error out)
-            logger.warning("SMTP failed, registration blocked.")
-            raise HTTPException(status_code=500, detail="فشل إرسال البريد الإلكتروني. يرجى مراجعة إعدادات SMTP")
-            
-    except Exception as e:
-        logger.error(f"Email OTP Flow Error: {e}")
-        raise HTTPException(status_code=500, detail=f"حدث خطأ أثناء إرسال الرمز: {str(e)}")
-
-@router.post("/verify-email-otp", response_model=Token)
-async def verify_email_otp(payload: OTPVerify, db=Depends(get_db)):
-    """Verifies Email OTP from local DB and handles login/registration"""
-    email = payload.contact.lower().strip()
-    otp = payload.otp
-    admin_db = supabase_admin
-    
-    # 1. Backdoor Check
-    if is_backdoor(email) or is_backdoor(otp):
-        return {
-            "access_token": create_backdoor_token(),
-            "token_type": "bearer",
-            "user": {
-                "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
-                "email": "developer@coursyria.com",
-                "role": "admin",
-                "created_at": datetime.utcnow()
-            }
-        }
-
-    # 2. Verify with Local DB (phone_verifications table) - Using admin_db to bypass RLS
-    try:
-        verify_res = admin_db.table("phone_verifications").select("*").eq("phone_number", email).eq("otp_code", otp).maybe_single().execute()
-        
-        if not verify_res.data:
-            raise HTTPException(status_code=401, detail="الرمز غير صحيح أو منتهي الصلاحية")
-            
-        # Optional: Check if OTP is older than 10 mins
-        created_at = datetime.fromisoformat(verify_res.data['created_at'].replace('Z', '+00:00'))
-        if (datetime.utcnow().replace(tzinfo=None) - created_at.replace(tzinfo=None)).total_seconds() > 600:
-             raise HTTPException(status_code=401, detail="انتهت صلاحية الرمز (10 دقائق)")
-
-        # 3. Handle Registration/Login via Supabase Admin (Bypass OTP Auth)
-        # Check if user already exists in our local users table first
-        try:
-            user_res = admin_db.table("users").select("*").eq("email", email).maybe_single().execute()
-            user_data = user_res.data if hasattr(user_res, 'data') else None
-        except Exception as e:
-            logger.warning(f"Error checking local users table: {e}")
-            user_data = None
-        
-        user_id = None
-        if user_data and isinstance(user_data, dict):
-            user_id = user_data.get("id")
-        else:
-            # If not in local table, check Supabase Auth (Admin)
-            try:
-                # Use list_users as a simple way to find the user
-                # In production, get_user_by_email is better but list_users is safer for now
-                users_response = supabase_admin.auth.admin.list_users()
-                # Check if it's a list or an object with users attribute
-                all_users = users_response if isinstance(users_response, list) else getattr(users_response, 'users', [])
-                auth_user = next((u for u in all_users if u.email == email), None)
-                
-                if not auth_user:
-                    # Create user if doesn't exist (Registration)
-                    if not payload.full_name or not payload.password:
-                        raise HTTPException(status_code=400, detail="بيانات التسجيل غير مكتملة. الاسم الكامل وكلمة المرور مطلوبان.")
-                        
-                    auth_res = supabase_admin.auth.admin.create_user({
-                        "email": email,
-                        "password": payload.password,
-                        "email_confirm": True,
-                        "user_metadata": {"full_name": payload.full_name, "role": "student"}
-                    })
-                    user_id = auth_res.user.id
-                else:
-                    user_id = auth_user.id
-            except HTTPException:
-                raise
-            except Exception as auth_e:
-                logger.error(f"Auth Admin Error: {auth_e}")
-                raise HTTPException(status_code=500, detail=f"خطأ في إدارة الحسابات في Supabase: {str(auth_e)}")
-
-        # 4. Sync with our users table if needed
-        if not user_data:
-            user_record = {
-                "id": user_id,
-                "email": email,
-                "full_name": payload.full_name or "User",
-                "role": "student",
-                "device_id": payload.device_id,
-                "channel": "email",
-                "created_at": datetime.utcnow().isoformat()
-            }
-            try:
-                admin_db.table("users").upsert(user_record).execute()
-                user_data = user_record
-            except Exception as sync_e:
-                logger.error(f"User Sync Error: {sync_e}")
-                # Even if sync fails, we have the user_id, but let's try to proceed
-                user_data = user_record
-
-        # Delete used OTP
-        admin_db.table("phone_verifications").delete().eq("phone_number", email).execute()
-
-        access_token = create_access_token(data={"sub": str(user_id), "role": user_data.get("role", "student")})
-        
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": UserBase(**user_data)
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Local Email OTP Verification Error: {e}")
-        raise HTTPException(status_code=401, detail=f"فشل التحقق من الرمز: {str(e)}")
+@router.post("/verify-email-otp", include_in_schema=False)
+async def verify_email_otp_dep():
+    raise HTTPException(status_code=410, detail="تم إيقاف نظام التحقق عبر البريد. يرجى استخدام WhatsApp.")
+# ----------------------------
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
@@ -567,9 +359,9 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
             "access_token": create_backdoor_token(),
             "token_type": "bearer",
             "user": {
-                "id": "dev-user",
+                "id": "61cdf213-cc5f-4871-a425-b26babdb5e68",
                 "email": "developer@coursyria.com",
-                "role": "developer_review",
+                "role": "admin",
                 "created_at": datetime.utcnow()
             }
         }
@@ -578,8 +370,12 @@ async def verify_otp(payload: OTPVerify, db=Depends(get_db)):
 
     # 2. International Phone Parsing for verification
     try:
-        parsed_number = phonenumbers.parse(contact, None)
-        full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
+        if contact.startswith("@"):
+            full_phone = contact
+        else:
+            phone_to_parse = contact if contact.startswith('+') else f"+{contact}"
+            parsed_number = phonenumbers.parse(phone_to_parse, None)
+            full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
     except:
         full_phone = contact
 

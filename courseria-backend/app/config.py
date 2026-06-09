@@ -26,16 +26,6 @@ class Settings(BaseSettings):
     WA_ID_INSTANCE: str = ""
     WA_TOKEN_INSTANCE: str = ""
     
-    # Telegram Bot settings
-    TG_API_URL: str = "https://api.green-api.com" # Green API supports TG too
-    TG_ID_INSTANCE: str = ""
-    TG_TOKEN_INSTANCE: str = ""
-
-    # Resend Email API settings
-    EMAIL_API_KEY: str = ""
-    EMAIL_API_URL: str = "https://api.resend.com/emails"
-    FROM_EMAIL: str = "onboarding@resend.dev"
-
     # AI settings
     OPENROUTER_API_KEY: str
     OPENROUTER_URL: str = "https://openrouter.ai/api/v1/chat/completions"
