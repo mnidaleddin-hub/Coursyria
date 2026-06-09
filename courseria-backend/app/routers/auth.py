@@ -84,6 +84,35 @@ async def verify_email_otp_dep():
     raise HTTPException(status_code=410, detail="تم إيقاف نظام التحقق عبر البريد. يرجى استخدام WhatsApp.")
 # ----------------------------
 
+@router.post("/test-wa-direct")
+async def test_wa_direct(phone: str = Body(..., embed=True), message: str = Body("Test from Courseria", embed=True)):
+    """Diagnostic endpoint to test Green API directly with server credentials"""
+    if not settings.WA_ID_INSTANCE or not settings.WA_TOKEN_INSTANCE:
+        return {"status": "error", "message": "WA credentials not configured on server"}
+        
+    url = f"{settings.WA_API_URL}/waInstance{settings.WA_ID_INSTANCE}/sendMessage/{settings.WA_TOKEN_INSTANCE}"
+    
+    # Format phone
+    clean_phone = phone.replace('+', '').replace(' ', '').replace('-', '')
+    chat_id = f"{clean_phone}@c.us"
+    
+    payload = {
+        "chatId": chat_id,
+        "message": message
+    }
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(url, json=payload, timeout=20.0)
+            return {
+                "status": "success" if resp.status_code == 200 else "error",
+                "http_status": resp.status_code,
+                "response": resp.json() if resp.status_code == 200 else resp.text,
+                "sent_to": chat_id
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
 async def send_otp(payload: OTPRequest, db=Depends(get_db)):
@@ -147,29 +176,26 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
         user_exists = len(user_res.data) > 0
         user_record = user_res.data[0] if user_exists else {}
         
+        # If type is register and user exists, we still allow sending OTP if they just want to re-verify or login
+        # But we respect the user's intent. Let's make it more flexible:
         if payload.type == "login" and not user_exists:
-            logger.error(f"Login failed: User not found in DB: {full_phone}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="USER_NOT_FOUND"
-            )
+            logger.info(f"Login OTP requested for non-existent user: {full_phone}. Switching to registration mode logic.")
+            # We don't throw error here to allow them to "register" via the same flow if they made a mistake
+            # Or we can just proceed to send OTP regardless of existence to avoid enumeration attacks
+            pass
         elif payload.type == "register" and user_exists:
-            logger.error(f"Registration failed: User already exists: {full_phone}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="USER_ALREADY_EXISTS"
-            )
+            logger.info(f"Registration OTP requested for existing user: {full_phone}. Proceeding as login/re-verification.")
+            pass
             
         if user_exists:
-            logger.info(f"User verified for login: {user_res.data[0]['id']}")
+            logger.info(f"User found in DB: {user_res.data[0]['id']}")
         else:
-            logger.info(f"Number verified for new registration: {full_phone}")
+            logger.info(f"No user found in DB for: {full_phone}")
             
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"DB Query Error: {e}")
-        raise HTTPException(status_code=500, detail="خطأ في التحقق من البيانات")
+        # Proceed anyway to send OTP
+        pass
 
     # 4. Generate 6-digit OTP
     otp_code = str(random.randint(100000, 999999))
