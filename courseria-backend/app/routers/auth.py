@@ -290,9 +290,11 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
             # Implement exponential backoff retry mechanism (3 attempts)
             for attempt in range(3):
                 try:
+                    # EXACT PAYLOAD STRUCTURE REQUESTED BY USER
                     payload = {
                         "chatId": chat_id,
-                        "message": message_text
+                        "message": message_text,
+                        "customPreview": {}
                     }
                     
                     response = await client.post(
