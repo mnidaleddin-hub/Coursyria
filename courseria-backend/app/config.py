@@ -22,7 +22,7 @@ class Settings(BaseSettings):
         return self.ENV.lower() == "production"
 
     # Green API (WhatsApp) settings
-    WA_API_URL: str = "https://api.green-api.com"
+    WA_API_URL: str = "https://7107.api.greenapi.com"
     WA_ID_INSTANCE: str = ""
     WA_TOKEN_INSTANCE: str = ""
     

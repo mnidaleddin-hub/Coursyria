@@ -4,7 +4,6 @@ from app.database import get_db, supabase_public, supabase_admin
 from app.dependencies import get_current_user, get_supabase_client
 from app.auth_utils import create_access_token
 from app.config import get_settings
-import requests
 from datetime import datetime, timedelta
 import uuid
 import random
@@ -98,32 +97,40 @@ async def check_wa_config():
 @router.post("/test-wa-direct")
 async def test_wa_direct(
     phone: str = Body(..., embed=True), 
-    message: str = Body("Test from Courseria", embed=True)
+    message: str = Body("Test from Courseria", embed=True),
+    id_instance: Optional[str] = Body(None, embed=True),
+    token: Optional[str] = Body(None, embed=True)
 ):
-    """Diagnostic endpoint to test Green API directly"""
-    try:
-        t_id = "7107621915"
-        t_token = "671698dabcf043ed84bc4726b52d242f6035b4f0cc3b4a4f81"
+    """Diagnostic endpoint to test Green API directly with provided or server credentials"""
+    target_id = id_instance or settings.WA_ID_INSTANCE
+    target_token = token or settings.WA_TOKEN_INSTANCE
+    
+    if not target_id or not target_token:
+        return {"status": "error", "message": "WA credentials not provided and not on server"}
         
-        url = f"https://api.green-api.com/waInstance{t_id}/sendMessage/{t_token}"
-        clean_phone = str(phone).replace('+', '').replace(' ', '').replace('-', '')
-        
-        payload = {
-            "chatId": f"{clean_phone}@c.us",
-            "message": str(message)
-        }
-        
-        import requests
-        r = requests.post(url, json=payload, timeout=20.0)
-        
-        return {
-            "debug_status": r.status_code,
-            "debug_response": r.text,
-            "target": f"{clean_phone}@c.us"
-        }
-    except Exception as e:
-        # RETURN ERROR AS 200 TO BYPASS GLOBAL HANDLER
-        return JSONResponse(status_code=200, content={"debug_error": str(e)})
+    url = f"{settings.WA_API_URL}/waInstance{target_id}/sendMessage/{target_token}"
+    
+    # Format phone
+    clean_phone = phone.replace('+', '').replace(' ', '').replace('-', '')
+    chat_id = f"{clean_phone}@c.us"
+    
+    payload = {
+        "chatId": chat_id,
+        "message": message
+    }
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, json=payload, timeout=20.0)
+            return {
+                "status": "success" if response.status_code == 200 else "error",
+                "http_status": response.status_code,
+                "response": response.json() if response.status_code == 200 else response.text,
+                "sent_to": chat_id,
+                "using_instance": target_id
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
 @router.post("/send-otp")
 @router.post("/send-otp/", include_in_schema=False)
@@ -150,9 +157,11 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
 
     # 2. International Phone Parsing / Username Handling
     try:
+        logger.info(f"Raw request payload: contact={contact}, channel={channel}")
+        
         # TELEGRAM USERNAME CHECK: If contact starts with @, skip phone parsing
         if contact.startswith("@"):
-            full_phone = contact 
+            full_phone = contact # We reuse this variable name to keep code flow simple
             clean_number_for_api = contact
             logger.info(f"Detected Telegram Username: {contact}")
         else:
@@ -161,19 +170,19 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
             parsed_number = phonenumbers.parse(phone_to_parse, None)
             if not phonenumbers.is_valid_number(parsed_number):
                 logger.error(f"Invalid phone number: {contact}")
-                # Fallback for manual testing if parsing fails
-                full_phone = phone_to_parse
-                clean_number_for_api = contact.replace('+', '').replace(' ', '')
-            else:
-                full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
-                # For Green API chat ID, we need the number without the '+'
-                clean_number_for_api = full_phone.replace('+', '')
-                logger.info(f"Parsed Phone: {full_phone} (API ID: {clean_number_for_api})")
+                raise ValueError("رقم هاتف غير صالح")
+            
+            full_phone = phonenumbers.format_number(parsed_number, PhoneNumberFormat.E164)
+            # For Green API chat ID, we need the number without the '+'
+            clean_number_for_api = full_phone.replace('+', '')
+            logger.info(f"Parsed Phone: {full_phone} (API ID: {clean_number_for_api})")
     except Exception as e:
+        if isinstance(e, ValueError): raise
         logger.error(f"Parsing Error: {e}")
-        # Last resort fallback
-        full_phone = contact if contact.startswith('+') else f"+{contact}"
-        clean_number_for_api = contact.replace('+', '').replace(' ', '')
+        raise HTTPException(
+            status_code=400, 
+            detail="يرجى إدخال رقم هاتف صحيح أو معرف تليغرام يبدأ بـ @"
+        )
 
     # 3. Business Logic Check (Login vs Register)
     try:
@@ -242,7 +251,7 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
         raise HTTPException(status_code=500, detail="فشل في حفظ رمز التحقق في قاعدة البيانات")
 
     # 6. Message configuration
-    message_text = f"🔒 رمز التحقق الخاص بك لتفعيل حسابك في منصة كورسيريا التعليمية هو: {otp_code}\n\nهذا الرمز صالح لمدة 10 دقائق."
+    message_text = f"رمز التحقق الخاص بك هو {otp_code}"
     
     # Selection of API credentials based on channel
     if channel == "whatsapp":
@@ -275,38 +284,50 @@ async def send_otp(payload: OTPRequest, db=Depends(get_db)):
     
     logger.info(f"Sending to {channel} via Green API...")
     logger.info(f"Endpoint: {api_url}/waInstance{id_instance}/sendMessage/****")
-    
-    payload = {
-        "chatId": chat_id,
-        "message": message_text
-    }
-    headers = {"Content-Type": "application/json"}
 
-    # Implement exponential backoff retry mechanism (3 attempts)
-    for attempt in range(3):
+    async with httpx.AsyncClient() as client:
         try:
-            # Use requests for maximum compatibility with the successful PowerShell test
-            response = requests.post(endpoint, json=payload, headers=headers, timeout=25.0)
-            
-            logger.info(f"Attempt {attempt+1} - Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                logger.info(f"Message sent successfully: {response.text}")
-                return {"status": "success", "message": "تم إرسال رمز التحقق بنجاح"}
-            
-            logger.error(f"Attempt {attempt+1} failed: {response.text}")
-        except Exception as e:
-            logger.warning(f"Attempt {attempt+1} error: {str(e)}")
+            # Implement exponential backoff retry mechanism (3 attempts)
+            for attempt in range(3):
+                try:
+                    payload = {
+                        "chatId": chat_id,
+                        "message": message_text
+                    }
+                    
+                    response = await client.post(
+                        endpoint,
+                        json=payload,
+                        headers={"Content-Type": "application/json"},
+                        timeout=25.0
+                    )
+                    
+                    logger.info(f"Attempt {attempt+1} - Status: {response.status_code}")
+                    
+                    if response.status_code == 200:
+                        logger.info(f"Message sent successfully: {response.text}")
+                        return {"status": "success", "message": "تم إرسال رمز التحقق بنجاح"}
+                    
+                    logger.error(f"Attempt {attempt+1} failed: {response.text}")
+                except (httpx.TimeoutException, httpx.RequestError) as e:
+                    logger.warning(f"Attempt {attempt+1} network error: {e}")
 
-        if attempt < 2:
-            wait_time = (attempt + 1) * 3
-            logger.info(f"Retrying in {wait_time} seconds...")
-            await asyncio.sleep(wait_time)
-    
-    raise HTTPException(
-        status_code=502, 
-        detail=f"فشل إرسال الرمز عبر {channel} بعد 3 محاولات. يرجى التأكد من أن الرقم مسجل في الخدمة."
-    )
+                if attempt < 2:
+                    wait_time = (attempt + 1) * 3
+                    logger.info(f"Retrying in {wait_time} seconds...")
+                    await asyncio.sleep(wait_time)
+            
+            raise HTTPException(
+                status_code=502, 
+                detail=f"فشل إرسال الرمز عبر {channel} بعد 3 محاولات. يرجى التأكد من أن الرقم مسجل في الخدمة."
+            )
+            
+        except httpx.TimeoutException:
+            logger.error(f"Green API Timeout on {channel}")
+            raise HTTPException(status_code=504, detail="انتهت مهلة الاتصال بمزود الخدمة (Green API)")
+        except Exception as e:
+            logger.error(f"Green API Request Error: {e}")
+            raise HTTPException(status_code=500, detail=f"خطأ تقني في إرسال الرسالة: {str(e)}")
 
 @router.get("/test-whatsapp")
 async def test_whatsapp(phone: str):

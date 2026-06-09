@@ -100,7 +100,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     # Generic error handling
     return JSONResponse(
         status_code=500,
-        content={"status": "error", "message": f"Global Error: {str(exc)}"}
+        content={"status": "error", "message": "حدث خطأ داخلي في السيرفر"}
     )
 
 # CORS Middleware setup
@@ -140,15 +140,6 @@ async def log_requests(request, call_next):
     except Exception as e:
         logger.critical(f"!!! CRITICAL BACKEND ERROR: {str(e)}")
         raise e
-
-@app.get("/debug-settings")
-async def debug_settings():
-    return {
-        "ENV": settings.ENV,
-        "WA_ID": settings.WA_ID_INSTANCE,
-        "WA_TOKEN_LEN": len(settings.WA_TOKEN_INSTANCE) if settings.WA_TOKEN_INSTANCE else 0,
-        "ALLOWED_ORIGINS": settings.ALLOWED_ORIGINS
-    }
 
 # Root health-check endpoint
 @app.get("/")
